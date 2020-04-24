@@ -9,6 +9,7 @@ from .agent.agent import *
 from .example_worlds import *
 from .domain.observation import *
 from .models.components.grid_map import *
+from .models.dynamic_transition_model import *
 import argparse
 import time
 import random
@@ -50,6 +51,9 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                                   grid map of the world. Then, the agent can use this
                                   map to avoid planning invalid actions (bumping into things).
                                   But this map does not help the agent's prior belief directly.
+            motion_policies_dict (dict): Maps from dynamic object string representation
+                                         to a list of points the object traverses 
+                                         (TODO: currently limited to iterative motion policy.)
 
             sigma, epsilon: observation model paramters
             belief_rep (str): belief representation. Either histogram or particles.
@@ -93,13 +97,16 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                          belief_rep=belief_rep,
                          prior=prior,
                          num_particles=num_particles,
-                         grid_map=grid_map)
+                         grid_map=grid_map,
+                         dynamic_object_ids=env.dynamic_object_ids,
+                         motion_policies=env.dynamic_object_motion_policies)
         super().__init__(agent, env,
                          name="MOS(%d,%d,%d)" % (env.width, env.length, len(env.target_objects)))
 
 
 ### Belief Update ###
-def belief_update(agent, real_action, real_observation, next_robot_state, planner):
+def belief_update(agent, real_action, real_observation, next_robot_state,
+                  planner, dynamic_object_ids=set({})):
     """Updates the agent's belief; The belief update may happen
     through planner update (e.g. when planner is POMCP)."""
     # Updates the planner; In case of POMCP, agent's belief is also updated.
@@ -142,14 +149,15 @@ def belief_update(agent, real_action, real_observation, next_robot_state, planne
                     # observation model from O(oi|s',a) to O(label_i|s',a) and
                     # it becomes easy to define O(label_i=i|s',a) and O(label_i=FREE|s',a).
                     # These ideas are used in my recent 3D object search work.
-                    new_belief = pomdp_py.update_histogram_belief(belief_obj,
-                                                                  real_action,
-                                                                  real_observation.for_obj(objid),
-                                                                  agent.observation_model[objid],
-                                                                  agent.transition_model[objid],
-                                                                  # The agent knows the objects are static.
-                                                                  static_transition=objid != agent.robot_id,
-                                                                  oargs={"next_robot_state": next_robot_state})
+                    static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
+                    new_belief = pomdp_py.update_histogram_belief(
+                        belief_obj, real_action,
+                        real_observation.for_obj(objid),
+                        agent.observation_model[objid],
+                        agent.transition_model[objid],
+                        # The agent knows the objects are static.
+                        static_transition=static_transition,
+                        oargs={"next_robot_state": next_robot_state})
             else:
                 raise ValueError("Unexpected program state. Are you using %s for %s?"
                                  % (belief_rep, str(type(planner))))
@@ -236,8 +244,9 @@ def solve(problem,
         problem.agent.clear_history()  # truncate history
         problem.agent.update_history(real_action, real_observation)
         belief_update(problem.agent, real_action, real_observation,
-                      problem.env.state.object_states[robot_id],
-                      planner)
+                      problem.env.state.object_states[robot_id], planner,
+                      # We assume the agent knows which objects are dynamic
+                      dynamic_object_ids=problem.env.dynamic_object_ids)
         _time_used += time.time() - _start
 
         # Info and render
@@ -285,7 +294,7 @@ def solve(problem,
 # Test
 def unittest():
     # random world
-    grid_map, robot_char, motion_policies_dict = dynamic_world_1 #random_world(14, 14, 3, 5)
+    grid_map, robot_char, motion_policies_dict = dynamic_world_3 #random_world(14, 14, 3, 5)
     laserstr = make_laser_sensor(90, (1, 2), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character

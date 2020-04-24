@@ -6,6 +6,7 @@
 import pomdp_py
 from .belief import *
 from ..models.transition_model import *
+from ..models.dynamic_transition_model import *
 from ..models.observation_model import *
 from ..models.reward_model import *
 from ..models.policy_model import *
@@ -23,7 +24,9 @@ class MosAgent(pomdp_py.Agent):
                  belief_rep="histogram",  # belief representation, either "histogram" or "particles".
                  prior={},       # prior belief, as defined in belief.py:initialize_belief
                  num_particles=100,  # used if the belief representation is particles
-                 grid_map=None):  # GridMap used to avoid collision with obstacles (None if not provided)
+                 grid_map=None,  # GridMap used to avoid collision with obstacles (None if not provided)
+                 dynamic_object_ids=set({}),  # set of object ids that are dynamic objects
+                 motion_policies={}):  # map from dynamic object id to MotionPolicy
         self.robot_id = robot_id
         self._object_ids = object_ids
         self.sensor = sensor
@@ -42,9 +45,17 @@ class MosAgent(pomdp_py.Agent):
                                         robot_orientations={self.robot_id:rth},
                                         num_particles=num_particles,
                                         grid_map=grid_map)
-        transition_model = MosTransitionModel(dim,
-                                              {self.robot_id: self.sensor},
-                                              self._object_ids)
+        if len(dynamic_object_ids) > 0:
+            static_object_ids = self._object_ids - dynamic_object_ids
+            transition_model = DynamicMosTransitionModel(dim,
+                                                         {self.robot_id: self.sensor},
+                                                         static_object_ids,
+                                                         dynamic_object_ids,
+                                                         motion_policies)
+        else:
+            transition_model = MosTransitionModel(dim,
+                                                  {self.robot_id: self.sensor},
+                                                  self._object_ids)
         observation_model = MosObservationModel(dim,
                                                 self.sensor,
                                                 self._object_ids,

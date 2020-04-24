@@ -16,8 +16,14 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
         self._epsilon = epsilon
 
     def probability(self, next_object_state, state, action):
-        return self._motion_policy.probability(next_object_state,
-                                               state.object_states[self._objid])
+        if isinstance(state, pomdp_py.OOState):
+            return self._motion_policy.probability(next_object_state,
+                                                   state.object_states[self._objid])
+        else:
+            assert isinstance(state, ObjectState)
+            return self._motion_policy.probability(next_object_state,
+                                                   state)
+
 
     def sample(self, state, action, argmax=False):
         cur_object_state = state.object_states[self._objid]
@@ -44,6 +50,8 @@ class DynamicMosTransitionModel(pomdp_py.OOTransitionModel):
              Environment.  see RobotTransitionModel for details.
         """
         self._sensors = sensors
+        self.dynamic_object_ids = dynamic_object_ids
+        self.dynamic_object_motion_policies = motion_policies
         transition_models = {}
         for objid in static_object_ids:
             if objid not in sensors:

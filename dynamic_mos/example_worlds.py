@@ -149,6 +149,15 @@ xxxxxxxxxxxxxxx
            "E": [(9,1),(9,2),(9,3),(10,3),(11,3),(11,2),(11,1),(10,1)]}
 )
 
+static_world_5 = (
+"""
+xxxxxxxxxxxxxxx
+xxr...xxxT...xx
+xx...........xx
+xx....xxx...Txx
+xxxxxxxxxxxxxxx
+""", "r", {})
+
 
 def random_world(width, length, num_obj, num_obstacles,
                  robot_char="r"):

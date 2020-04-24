@@ -13,6 +13,8 @@ from .models.dynamic_transition_model import *
 import argparse
 import time
 import random
+import sys
+import os
 
 class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     """
@@ -114,8 +116,10 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
 
     # Update agent's belief, when planner is not POMCP
     if not isinstance(planner, pomdp_py.POMCP):
-        # Update belief for every object
+        # Update belief for every undetected object
         for objid in agent.cur_belief.object_beliefs:
+            if objid in next_robot_state['objects_found']:
+                continue  # already found this object
             belief_obj = agent.cur_belief.object_belief(objid)
             if isinstance(belief_obj, pomdp_py.Histogram):
                 if objid == agent.robot_id:
@@ -174,7 +178,8 @@ def solve(problem,
           exploration_const=1000, # exploration constant
           visualize=True,
           max_time=120,  # maximum amount of time allowed to solve the problem
-          max_steps=500): # maximum number of planning steps the agent can take.
+          max_steps=500, # maximum number of planning steps the agent can take.
+          save_path=None):  # path to directory to save screenshots for each step
     """
     This function terminates when:
     - maximum time (max_time) reached; This time includes planning and updates
@@ -276,7 +281,13 @@ def solve(problem,
                        viz_observation,
                        problem.agent.cur_belief)
             viz.on_loop()
-            viz.on_render()
+            img = viz.on_render()
+            if save_path is not None:
+                # Rotate the image ccw 90 degree and convert color
+                img = img.astype(np.float32)
+                img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)  # rotate 90deg clockwise
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                cv2.imwrite(os.path.join(save_path, "step_%d.png" % (i)), img)
             
         # Termination check
         if set(problem.env.state.object_states[robot_id].objects_found)\
@@ -293,7 +304,13 @@ def solve(problem,
 # Test
 def unittest():
     # random world
-    grid_map, robot_char, motion_policies_dict = dynamic_world_5 #random_world(14, 14, 3, 5)
+    save_path = None
+    if len(sys.argv) > 1:
+        save_path = sys.argv[1]
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        
+    grid_map, robot_char, motion_policies_dict = dynamic_world_4 #random_world(14, 14, 3, 5)
     laserstr = make_laser_sensor(90, (1, 2), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
@@ -311,7 +328,8 @@ def unittest():
           exploration_const=1000,
           visualize=True,
           max_time=120,
-          max_steps=500)
+          max_steps=500,
+          save_path=save_path)
 
 if __name__ == "__main__":
     unittest()

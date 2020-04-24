@@ -233,8 +233,6 @@ def solve(problem,
         reward = problem.env.state_transition(real_action, execute=True,
                                               robot_id=robot_id)
 
-        print(problem.env.state)
-
         # Receive observation
         _start = time.time()
         real_observation = \
@@ -254,6 +252,7 @@ def solve(problem,
         if isinstance(real_action, FindAction):
             _find_actions_count += 1
         print("==== Step %d ====" % (i+1))
+        print("Robot State: %s" % str(problem.env.state.object_states[robot_id]))
         print("Action: %s" % str(real_action))
         print("Observation: %s" % str(real_observation))
         print("Reward: %s" % str(reward))
@@ -294,7 +293,7 @@ def solve(problem,
 # Test
 def unittest():
     # random world
-    grid_map, robot_char, motion_policies_dict = dynamic_world_3 #random_world(14, 14, 3, 5)
+    grid_map, robot_char, motion_policies_dict = dynamic_world_5 #random_world(14, 14, 3, 5)
     laserstr = make_laser_sensor(90, (1, 2), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
@@ -306,9 +305,9 @@ def unittest():
                                 prior="uniform",
                                 agent_has_map=True)
     solve(problem,
-          max_depth=30,
+          max_depth=20,
           discount_factor=0.95,
-          planning_time=0.7,
+          planning_time=0.9,
           exploration_const=1000,
           visualize=True,
           max_time=120,

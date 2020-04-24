@@ -34,7 +34,8 @@ class MosOOBelief(pomdp_py.OOBelief):
 
 
 def initialize_belief(dim, robot_id, object_ids, prior={},
-                      representation="histogram", robot_orientations={}, num_particles=100):
+                      representation="histogram", robot_orientations={},
+                      num_particles=100, grid_map=None):
     """
     Returns a GenerativeDistribution that is the belief representation for
     the multi-object search problem.
@@ -53,20 +54,25 @@ def initialize_belief(dim, robot_id, object_ids, prior={},
         robot_orientations (dict): Mapping from robot id to their initial orientation (radian).
                                    Assumed to be 0 if robot id not in this dictionary.
         num_particles (int): Maximum number of particles used to represent the belief
+        grid_map (GridMap): The occupancy grid map the agent equips. By default None (i.e.
+                            agent isn't equipped with a map).
 
     Returns:
         GenerativeDistribution: the initial belief representation.
     """
     if representation == "histogram":
-        return _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orientations)
+        return _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orientations,
+                                            grid_map=grid_map)
     elif representation == "particles":
         return _initialize_particles_belief(dim, robot_id, object_ids,
-                                            robot_orientations, num_particles=num_particles)
+                                            robot_orientations, num_particles=num_particles,
+                                            grid_map=grid_map)
     else:
         raise ValueError("Unsupported belief representation %s" % representation)
 
     
-def _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orientations):
+def _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orientations,
+                                 grid_map=None):
     """
     Returns the belief distribution represented as a histogram
     """
@@ -85,6 +91,11 @@ def _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orienta
             # no prior knowledge. So uniform.
             for x in range(width):
                 for y in range(length):
+                    if grid_map is not None\
+                       and (x,y) in grid_map.obstacle_poses:
+                        # belief here is always going to be zero.
+                        # so exclude it from the histogram
+                        continue
                     state = ObjectState(objid, "target", (x,y))
                     hist[state] = 1.0
                     total_prob += hist[state]
@@ -107,7 +118,8 @@ def _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orienta
 
 
 def _initialize_particles_belief(dim, robot_id, object_ids, prior,
-                                 robot_orientations, num_particles=100):
+                                 robot_orientations, num_particles=100,
+                                 grid_map=None):
     """This returns a single set of particles that represent the distribution over a
     joint state space of all objects.
 
@@ -141,6 +153,11 @@ def _initialize_particles_belief(dim, robot_id, object_ids, prior,
             for _ in range(num_particles):
                 x = random.randrange(0, width)
                 y = random.randrange(0, length)
+                if grid_map is not None\
+                   and (x,y) in grid_map.obstacle_poses:
+                    # belief here is always going to be zero.
+                    # so exclude it from the histogram
+                    continue                
                 state = ObjectState(objid, "target", (x,y))
                 particles.append(state)
 

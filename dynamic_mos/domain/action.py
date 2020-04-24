@@ -35,7 +35,7 @@ class Action(pomdp_py.Action):
         return "Action(%s)" % self.name
 
 MOTION_SCHEME="xy"  # can be either xy or vw
-STEP_SIZE=2
+STEP_SIZE=1
 class MotionAction(Action):
     # scheme 1 (vx,vy,th)
     EAST = (STEP_SIZE, 0, 0)  # x is horizontal; x+ is right. y is vertical; y+ is down.

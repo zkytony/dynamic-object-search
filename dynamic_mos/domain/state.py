@@ -19,12 +19,14 @@ import math
 
 ###### States ######
 class ObjectState(pomdp_py.ObjectState):
-    def __init__(self, objid, objclass, pose):
+    def __init__(self, objid, objclass, pose, pose_index=0):
         if objclass != "obstacle" and objclass != "target":
             raise ValueError("Only allow object class to be"\
                              "either 'target' or 'obstacle'."
                              "Got %s" % objclass)
-        super().__init__(objclass, {"pose":pose, "id":objid})
+        super().__init__(objclass, {"pose":pose,
+                                    "id":objid,
+                                    "pose_index":pose_index})
     def __str__(self):
         return 'ObjectState(%s,%s)' % (str(self.objclass), str(self.pose))
     @property

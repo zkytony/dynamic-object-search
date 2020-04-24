@@ -9,24 +9,31 @@ class GridMap:
     actions that will run into obstacles. Used if we assume
     the agent has a map. This map does not contain information
     about the object locations."""
-    def __init__(self, width, length, obstacle_poses):
+    def __init__(self, width, length, obstacles):
         """
         Args:
-            obstacle_poses (dict): Map from objid to (x,y); The object is
+            obstacle (dict): Map from objid to (x,y); The object is
                                    supposed to be an obstacle.
             width (int): width of the grid map
             length (int): length of the grid map 
         """
         self.width = width
         self.length = length
-        self._obstacle_poses = obstacle_poses
+        self._obstacles = obstacles
         # An MosOOState that only contains poses for obstacles;
         # This is to allow calling RobotTransitionModel.if_move_by
         # function.
         self._obstacle_states = {
-            objid: ObjectState(objid, "obstacle", self._obstacle_poses[objid])
-            for objid in self._obstacle_poses
+            objid: ObjectState(objid, "obstacle", self._obstacles[objid])
+            for objid in self._obstacles
         }
+        self._obstacle_poses = set({
+            self._obstacles[objid] for objid in self._obstacles
+        })
+
+    @property
+    def obstacle_poses(self):
+        return self._obstacle_poses
 
     def valid_motions(self, robot_id, robot_pose, all_motion_actions):
         """

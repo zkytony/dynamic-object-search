@@ -99,6 +99,15 @@ world_becky = (
 ....................
 """, "r")
 
+dynamic_world_1 = (
+"""
+D...
+....
+xx..
+xx.r
+""", "r", {"D": [(0,0), (1,0), (2,0)]})
+
+
 def random_world(width, length, num_obj, num_obstacles,
                  robot_char="r"):
     worldstr = [[ "." for i in range(width)] for j in range(length)]

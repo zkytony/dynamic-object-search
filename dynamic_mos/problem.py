@@ -13,7 +13,7 @@ import argparse
 import time
 import random
 
-class MosOOPOMDP(pomdp_py.OOPOMDP):
+class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     """
     A MosOOPOMDP is instantiated given a string description
     of the search world, sensor descriptions for robots,
@@ -30,7 +30,7 @@ class MosOOPOMDP(pomdp_py.OOPOMDP):
     def __init__(self, robot_id, env=None, grid_map=None,
                  sensors=None, sigma=0.01, epsilon=1,
                  belief_rep="histogram", prior={}, num_particles=100,
-                 agent_has_map=False):
+                 agent_has_map=False, motion_policies_dict={}):
         """
         Args:
             robot_id (int or str): the id of the agent that will solve this MosOOPOMDP.
@@ -63,7 +63,7 @@ class MosOOPOMDP(pomdp_py.OOPOMDP):
                 "Since env is not provided, you must provide string descriptions"\
                 "of the world and sensors."
             worldstr = equip_sensors(grid_map, sensors)
-            env = interpret(worldstr)
+            env = interpret(worldstr, motion_policies_dict=motion_policies_dict)
 
         # construct prior
         if type(prior) == str:
@@ -220,10 +220,12 @@ def solve(problem,
         _time_used += time.time() - _start
         if _time_used > max_time:
             break  # no more time to update.
-
+        
         # Execute action
         reward = problem.env.state_transition(real_action, execute=True,
                                               robot_id=robot_id)
+
+        print(problem.env.state)
 
         # Receive observation
         _start = time.time()
@@ -283,16 +285,17 @@ def solve(problem,
 # Test
 def unittest():
     # random world
-    grid_map, robot_char = world_becky #random_world(14, 14, 3, 5)
-    laserstr = make_laser_sensor(90, (1, 5), 0.5, False)
-    proxstr = make_proximity_sensor(5, False)    
-    problem = MosOOPOMDP(robot_char,  # r is the robot character
-                         sigma=0.01,  # observation model parameter
-                         epsilon=1.0, # observation model parameter
-                         grid_map=grid_map,
-                         sensors={robot_char: proxstr},
-                         prior="informed",
-                         agent_has_map=True)
+    grid_map, robot_char, motion_policies_dict = dynamic_world_1 #random_world(14, 14, 3, 5)
+    laserstr = make_laser_sensor(90, (1, 2), 0.5, False)
+    proxstr = make_proximity_sensor(1, False)    
+    problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
+                                sigma=0.01,  # observation model parameter
+                                epsilon=1.0, # observation model parameter
+                                grid_map=grid_map,
+                                sensors={robot_char: laserstr},
+                                motion_policies_dict=motion_policies_dict,
+                                prior="uniform",
+                                agent_has_map=True)
     solve(problem,
           max_depth=30,
           discount_factor=0.95,

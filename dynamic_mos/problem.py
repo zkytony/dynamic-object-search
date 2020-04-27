@@ -15,12 +15,14 @@ import time
 import random
 import sys
 import os
+import copy
 
 class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     """
-    A MosOOPOMDP is instantiated given a string description
-    of the search world, sensor descriptions for robots,
-    and the necessary parameters for the agent's models.
+    A DynamicMosOOPOMDP is instantiated given a string
+    description of the search world, sensor descriptions for robots,
+    and the necessary parameters for the agent's models,
+    a dictionary that maps from dynamic objects to motion policies.
 
     Note: This is of course a simulation, where you can
     generate a world and know where the target objects are
@@ -128,32 +130,15 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                 else:
                     # This is doing
                     #    B(si') = normalizer * O(oi|si',sr',a) * sum_s T(si'|s,a)*B(si)
-                    # 
-                    # Notes: First, objects are static; Second,
-                    # O(oi|s',a) ~= O(oi|si',sr',a) according to the definition
-                    # of the observation model in models/observation.py.  Note
-                    # that the exact belief update rule for this OOPOMDP needs to use
-                    # a model like O(oi|si',sr',a) because it's intractable to
-                    # consider s' (that means all combinations of all object
-                    # states must be iterated).  Of course, there could be work
-                    # around (out of scope) - Consider a volumetric observaiton,
-                    # instead of the object-pose observation. That means oi is a
-                    # set of pixels (2D) or voxels (3D). Note the real
-                    # observation, oi, is most likely sampled from O(oi|s',a)
-                    # because real world considers the occlusion between objects
-                    # (due to full state s'). The problem is how to compute the
-                    # probability of this oi given s' and a, where it's
-                    # intractable to obtain s'. To this end, we can make a
-                    # simplifying assumption that an object is contained within
-                    # one pixel (or voxel); The pixel (or voxel) is labeled to
-                    # indicate free space or object. The label of each pixel or
-                    # voxel is certainly a result of considering the full state
-                    # s. The occlusion can be handled nicely with the volumetric
-                    # observation definition. Then that assumption can reduce the
-                    # observation model from O(oi|s',a) to O(label_i|s',a) and
-                    # it becomes easy to define O(label_i=i|s',a) and O(label_i=FREE|s',a).
-                    # These ideas are used in my recent 3D object search work.
                     static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
+                    next_state_space = None
+                    if not static_transition:
+                        next_state_space = set({})
+                        for state in belief_obj:
+                            next_index = agent.motion_policy(objid).next_index(state["pose_index"])
+                            trans_state = copy.deepcopy(state)
+                            trans_state["pose_index"] = next_index
+                            next_state_space.add(trans_state)
                     new_belief = pomdp_py.update_histogram_belief(
                         belief_obj, real_action,
                         real_observation.for_obj(objid),
@@ -161,7 +146,8 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                         agent.transition_model[objid],
                         # The agent knows the objects are static.
                         static_transition=static_transition,
-                        oargs={"next_robot_state": next_robot_state})
+                        oargs={"next_robot_state": next_robot_state},
+                        next_state_space=next_state_space)
             else:
                 raise ValueError("Unexpected program state. Are you using %s for %s?"
                                  % (belief_rep, str(type(planner))))
@@ -310,7 +296,7 @@ def unittest():
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         
-    grid_map, robot_char, motion_policies_dict = dynamic_world_4 #random_world(14, 14, 3, 5)
+    grid_map, robot_char, motion_policies_dict = dynamic_world_5 #random_world(14, 14, 3, 5)
     laserstr = make_laser_sensor(90, (1, 2), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character

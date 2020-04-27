@@ -25,14 +25,17 @@ class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
 
     def _next_pose(self, object_state):
         index = object_state['pose_index']
-        next_index = (index + 1) % len(self._ordered_points)
+        next_index = self.next_index(index)
         return self._ordered_points[next_index], next_index
+
+    def next_index(self, index):
+        return (index + 1) % len(self._ordered_points)
 
     def probability(self, next_object_state, cur_object_state):
         next_i = next_object_state["pose_index"]
         cur_i = cur_object_state["pose_index"]
         # If the indices are correct
-        if next_i == (cur_i + 1) % len(self._ordered_points):
+        if next_i == self.next_index(cur_i):
             # If the poses match with the pose list in this motion policy
             if next_object_state["pose"] == self._ordered_points[next_i]\
                and cur_object_state["pose"] == self._ordered_points[cur_i]:

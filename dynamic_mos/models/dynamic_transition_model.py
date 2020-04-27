@@ -75,3 +75,5 @@ class DynamicMosTransitionModel(pomdp_py.OOTransitionModel):
         oostate = pomdp_py.OOTransitionModel.argmax(self, state, action, **kwargs)
         return MosOOState(oostate.object_states)
 
+    def motion_policy(self, objid):
+        return self.dynamic_object_motion_policies.get(objid, None)

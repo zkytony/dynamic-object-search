@@ -72,3 +72,6 @@ class MosAgent(pomdp_py.Agent):
         """Custum function; clear history"""
         self._history = None
         
+    def motion_policy(self, objid):
+        if isinstance(self.transition_model, DynamicMosTransitionModel):
+            return self.transition_model.motion_policy(objid)

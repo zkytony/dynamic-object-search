@@ -33,7 +33,7 @@ class MosOOBelief(pomdp_py.OOBelief):
         return MosOOState(pomdp_py.OOBelief.random(self, **kwargs).object_states)
 
 
-def initialize_belief(dim, robot_id, object_ids, prior={},
+def initialize_belief(agent, dim, robot_id, object_ids, prior={},
                       representation="histogram", robot_orientations={},
                       num_particles=100, grid_map=None):
     """
@@ -60,18 +60,22 @@ def initialize_belief(dim, robot_id, object_ids, prior={},
     Returns:
         GenerativeDistribution: the initial belief representation.
     """
+    if agent.cur_belief is not None:
+        raise ValueError("Agent already has initial belief!")
     if representation == "histogram":
-        return _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orientations,
+        return _initialize_histogram_belief(agent, dim, robot_id, object_ids,
+                                            prior, robot_orientations,
                                             grid_map=grid_map)
     elif representation == "particles":
-        return _initialize_particles_belief(dim, robot_id, object_ids,
+        return _initialize_particles_belief(agent, dim, robot_id, object_ids,
                                             robot_orientations, num_particles=num_particles,
                                             grid_map=grid_map)
     else:
         raise ValueError("Unsupported belief representation %s" % representation)
 
     
-def _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orientations,
+def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
+                                 prior, robot_orientations,
                                  grid_map=None):
     """
     Returns the belief distribution represented as a histogram
@@ -84,22 +88,38 @@ def _initialize_histogram_belief(dim, robot_id, object_ids, prior, robot_orienta
         if objid in prior:
             # prior knowledge provided. Just use the prior knowledge
             for pose in prior[objid]:
-                state = ObjectState(objid, "target", pose)
+                # We will assume in the informed case, the dynamic object
+                # always starts from the 0th location in its path.
+                state = ObjectState(objid, "target", pose, pose_index=0)
                 hist[state] = prior[objid][pose]
                 total_prob += hist[state]
-        else:
-            # no prior knowledge. So uniform.
-            for x in range(width):
-                for y in range(length):
-                    if grid_map is not None\
-                       and (x,y) in grid_map.obstacle_poses:
-                        # belief here is always going to be zero.
-                        # so exclude it from the histogram
-                        continue
-                    state = ObjectState(objid, "target", (x,y))
-                    hist[state] = 1.0
-                    total_prob += hist[state]
 
+        for x in range(width):
+            for y in range(length):
+                if grid_map is not None\
+                   and (x,y) in grid_map.obstacle_poses:
+                    # belief here is always going to be zero.
+                    # so exclude it from the histogram
+                    continue
+
+                # If prior knowledge provided, just set a probability of
+                # 0 to states not included in the prior. Otherwise,
+                # we are dealing with uniform prior.
+                if objid in prior:
+                    state = ObjectState(objid, "target", (x,y))
+                    hist[state] = 1e-9
+                else:
+                    # In uniform prior, the agent doesn't know where
+                    # the dynamic object is at t=0. Thus, the pose_index
+                    # is just a random valid index (since the agent
+                    # does know the motion_policy the robot).
+                    state = ObjectState(objid, "target", (x,y))
+                    if agent.motion_policy(objid) is not None:
+                        # This object is dynamic
+                        state["pose_index"] = agent.motion_policy(objid).random_index()
+                    hist[state] = 1.0  # uniform
+                    total_prob += hist[state]
+                    
         # Normalize
         for state in hist:
             hist[state] /= total_prob

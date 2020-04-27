@@ -131,6 +131,9 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                     # This is doing
                     #    B(si') = normalizer * O(oi|si',sr',a) * sum_s T(si'|s,a)*B(si)
                     static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
+
+                    # The following sets up a state space where the pose indices have advanced
+                    # to the next index.
                     next_state_space = None
                     if not static_transition:
                         next_state_space = set({})
@@ -139,6 +142,7 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                             trans_state = copy.deepcopy(state)
                             trans_state["pose_index"] = next_index
                             next_state_space.add(trans_state)
+                            
                     new_belief = pomdp_py.update_histogram_belief(
                         belief_obj, real_action,
                         real_observation.for_obj(objid),

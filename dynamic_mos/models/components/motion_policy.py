@@ -1,6 +1,7 @@
 # Motion policy
 
 import pomdp_py
+import random
 from ...domain.state import *
 
 class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
@@ -30,6 +31,9 @@ class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
 
     def next_index(self, index):
         return (index + 1) % len(self._ordered_points)
+
+    def random_index(self):
+        return random.randint(0, len(self._ordered_points)-1)
 
     def probability(self, next_object_state, cur_object_state):
         next_i = next_object_state["pose_index"]

@@ -30,14 +30,39 @@ class MosAgent(pomdp_py.Agent):
         self.robot_id = robot_id
         self._object_ids = object_ids
         self.sensor = sensor
+        self._dim = dim
 
         # since the robot observes its own pose perfectly, it will have 100% prior
         # on this pose.
         prior[robot_id] = {init_robot_state.pose: 1.0}
         rth = init_robot_state.pose[2]
 
-        # initialize belief
-        init_belief = initialize_belief(dim,
+        if len(dynamic_object_ids) > 0:
+            static_object_ids = self._object_ids - dynamic_object_ids
+            transition_model = DynamicMosTransitionModel(self._dim,
+                                                         {self.robot_id: self.sensor},
+                                                         static_object_ids,
+                                                         dynamic_object_ids,
+                                                         motion_policies)
+        else:
+            transition_model = MosTransitionModel(self._dim,
+                                                  {self.robot_id: self.sensor},
+                                                  self._object_ids)
+        observation_model = MosObservationModel(self._dim,
+                                                self.sensor,
+                                                self._object_ids,
+                                                sigma=sigma,
+                                                epsilon=epsilon)
+        reward_model = GoalRewardModel(self._object_ids, robot_id=self.robot_id)
+        policy_model = PolicyModel(self.robot_id, grid_map=grid_map)
+
+        super().__init__(None, policy_model,
+                         transition_model=transition_model,
+                         observation_model=observation_model,
+                         reward_model=reward_model)
+        # initialize belief        
+        init_belief = initialize_belief(self,
+                                        self._dim,
                                         self.robot_id,
                                         self._object_ids,
                                         prior=prior,
@@ -45,28 +70,8 @@ class MosAgent(pomdp_py.Agent):
                                         robot_orientations={self.robot_id:rth},
                                         num_particles=num_particles,
                                         grid_map=grid_map)
-        if len(dynamic_object_ids) > 0:
-            static_object_ids = self._object_ids - dynamic_object_ids
-            transition_model = DynamicMosTransitionModel(dim,
-                                                         {self.robot_id: self.sensor},
-                                                         static_object_ids,
-                                                         dynamic_object_ids,
-                                                         motion_policies)
-        else:
-            transition_model = MosTransitionModel(dim,
-                                                  {self.robot_id: self.sensor},
-                                                  self._object_ids)
-        observation_model = MosObservationModel(dim,
-                                                self.sensor,
-                                                self._object_ids,
-                                                sigma=sigma,
-                                                epsilon=epsilon)
-        reward_model = GoalRewardModel(self._object_ids, robot_id=self.robot_id)
-        policy_model = PolicyModel(self.robot_id, grid_map=grid_map)
-        super().__init__(init_belief, policy_model,
-                         transition_model=transition_model,
-                         observation_model=observation_model,
-                         reward_model=reward_model)
+        self.set_belief(init_belief, prior=True)
+        
 
     def clear_history(self):
         """Custum function; clear history"""
@@ -75,3 +80,4 @@ class MosAgent(pomdp_py.Agent):
     def motion_policy(self, objid):
         if isinstance(self.transition_model, DynamicMosTransitionModel):
             return self.transition_model.motion_policy(objid)
+        return None

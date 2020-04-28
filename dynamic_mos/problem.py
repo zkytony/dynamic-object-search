@@ -131,18 +131,6 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                     # This is doing
                     #    B(si') = normalizer * O(oi|si',sr',a) * sum_s T(si'|s,a)*B(si)
                     static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
-
-                    # The following sets up a state space where the pose indices have advanced
-                    # to the next index.
-                    next_state_space = None
-                    if not static_transition:
-                        next_state_space = set({})
-                        for state in belief_obj:
-                            next_index = agent.motion_policy(objid).next_index(state["pose_index"])
-                            trans_state = copy.deepcopy(state)
-                            trans_state["pose_index"] = next_index
-                            next_state_space.add(trans_state)
-                            
                     new_belief = pomdp_py.update_histogram_belief(
                         belief_obj, real_action,
                         real_observation.for_obj(objid),
@@ -150,8 +138,7 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                         agent.transition_model[objid],
                         # The agent knows the objects are static.
                         static_transition=static_transition,
-                        oargs={"next_robot_state": next_robot_state},
-                        next_state_space=next_state_space)
+                        oargs={"next_robot_state": next_robot_state})
             else:
                 raise ValueError("Unexpected program state. Are you using %s for %s?"
                                  % (belief_rep, str(type(planner))))
@@ -312,7 +299,7 @@ def unittest():
                                 prior="uniform",
                                 agent_has_map=True)
     solve(problem,
-          max_depth=20,
+          max_depth=15,
           discount_factor=0.95,
           planning_time=0.9,
           exploration_const=1000,

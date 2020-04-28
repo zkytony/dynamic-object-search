@@ -90,7 +90,7 @@ def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
             for pose in prior[objid]:
                 # We will assume in the informed case, the dynamic object
                 # always starts from the 0th location in its path.
-                state = ObjectState(objid, "target", pose, pose_index=0)
+                state = ObjectState(objid, "target", pose)
                 hist[state] = prior[objid][pose]
                 total_prob += hist[state]
 
@@ -105,19 +105,11 @@ def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
                 # If prior knowledge provided, just set a probability of
                 # 0 to states not included in the prior. Otherwise,
                 # we are dealing with uniform prior.
+                state = ObjectState(objid, "target", (x,y))
                 if objid in prior:
-                    state = ObjectState(objid, "target", (x,y))
-                    hist[state] = 1e-9
+                    hist[state] = 1e-9 # almost zero probability
                 else:
-                    # In uniform prior, the agent doesn't know where
-                    # the dynamic object is at t=0. Thus, the pose_index
-                    # is just a random valid index (since the agent
-                    # does know the motion_policy the robot).
-                    state = ObjectState(objid, "target", (x,y))
-                    if agent.motion_policy(objid) is not None:
-                        # This object is dynamic
-                        state["pose_index"] = agent.motion_policy(objid).random_index()
-                    hist[state] = 1.0  # uniform
+                    hist[state] = 1.0  # uniform prior
                     total_prob += hist[state]
                     
         # Normalize

@@ -19,21 +19,27 @@ import math
 
 ###### States ######
 class ObjectState(pomdp_py.ObjectState):
-    def __init__(self, objid, objclass, pose):
+    def __init__(self, objid, objclass, pose, time=-1):
+        """If the object is static, then `time` is -1. Otherwise, `time`
+        indicates the time step of the dynamic object."""
         if objclass != "obstacle" and objclass != "target":
             raise ValueError("Only allow object class to be"\
                              "either 'target' or 'obstacle'."
                              "Got %s" % objclass)
         super().__init__(objclass, {"pose":pose,
-                                    "id":objid})
+                                    "id":objid,
+                                    "time":time})
     def __str__(self):
-        return 'ObjectState(%s,%s)' % (str(self.objclass), str(self.pose))
+        return 'ObjectState(%s,%s,t=%d)' % (str(self.objclass), str(self.pose), self.time)
     @property
     def pose(self):
         return self.attributes['pose']
     @property
     def objid(self):
         return self.attributes['id']
+    @property
+    def time(self):
+        return self.attributes['time']
 
 class RobotState(pomdp_py.ObjectState):
     def __init__(self, robot_id, pose, objects_found, camera_direction):

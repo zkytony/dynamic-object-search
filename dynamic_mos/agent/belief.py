@@ -85,12 +85,14 @@ def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
     for objid in object_ids:
         hist = {}  # pose -> prob
         total_prob = 0
+        dynamic_object = agent.motion_policy(objid) is not None
+        time = 0 if dynamic_object else -1
         if objid in prior:
             # prior knowledge provided. Just use the prior knowledge
             for pose in prior[objid]:
                 # We will assume in the informed case, the dynamic object
                 # always starts from the 0th location in its path.
-                state = ObjectState(objid, "target", pose)
+                state = ObjectState(objid, "target", pose, time=time)
                 hist[state] = prior[objid][pose]
                 total_prob += hist[state]
 
@@ -105,7 +107,7 @@ def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
                 # If prior knowledge provided, just set a probability of
                 # 0 to states not included in the prior. Otherwise,
                 # we are dealing with uniform prior.
-                state = ObjectState(objid, "target", (x,y))
+                state = ObjectState(objid, "target", (x,y), time=time)
                 if objid in prior:
                     hist[state] = 1e-9 # almost zero probability
                 else:
@@ -129,6 +131,7 @@ def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
     return MosOOBelief(robot_id, oo_hists)
 
 
+# WARNING: OUT OF DATE.
 def _initialize_particles_belief(dim, robot_id, object_ids, prior,
                                  robot_orientations, num_particles=100,
                                  grid_map=None):

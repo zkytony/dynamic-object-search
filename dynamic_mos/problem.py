@@ -35,7 +35,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     def __init__(self, robot_id, env=None, grid_map=None,
                  sensors=None, sigma=0.01, epsilon=1,
                  belief_rep="histogram", prior={}, num_particles=100,
-                 agent_has_map=False, motion_policies_dict={}):
+                 agent_has_map=False, motion_policies_dict={}): # TODO: motion_policies_dict is weird.
         """
         Args:
             robot_id (int or str): the id of the agent that will solve this MosOOPOMDP.
@@ -131,6 +131,16 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                     # This is doing
                     #    B(si') = normalizer * O(oi|si',sr',a) * sum_s T(si'|s,a)*B(si)
                     static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
+
+                    # The following sets up a state space where the time step have advanced.
+                    next_state_space = None
+                    if not static_transition:
+                        next_state_space = set({})
+                        for state in belief_obj:
+                            next_state = copy.deepcopy(state)
+                            next_state["time"] = state["time"] + 1
+                            next_state_space.add(next_state)
+                    
                     new_belief = pomdp_py.update_histogram_belief(
                         belief_obj, real_action,
                         real_observation.for_obj(objid),
@@ -138,6 +148,7 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                         agent.transition_model[objid],
                         # The agent knows the objects are static.
                         static_transition=static_transition,
+                        next_state_space=next_state_space,
                         oargs={"next_robot_state": next_robot_state})
             else:
                 raise ValueError("Unexpected program state. Are you using %s for %s?"
@@ -296,7 +307,7 @@ def unittest():
                                 grid_map=grid_map,
                                 sensors={robot_char: laserstr},
                                 motion_policies_dict=motion_policies_dict,
-                                prior="uniform",
+                                prior="informed",
                                 agent_has_map=True)
     solve(problem,
           max_depth=15,

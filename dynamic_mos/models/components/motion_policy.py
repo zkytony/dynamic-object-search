@@ -13,12 +13,8 @@ class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
         """
         Requires the path contains no loop.
         """
-        if len(set(ordered_points)) != len(ordered_points):
-            raise ValueError("The path must not contain loop or intersection with itself.")
         self._ordered_points = ordered_points
-        self._indices = {
-            p:i for i,p in enumerate(self._ordered_points)
-        }
+        self._points_set = set(ordered_points)
         self._epsilon = epsilon
 
     def random(self, object_state):
@@ -28,11 +24,14 @@ class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
         next_pose, _ = self._next_pose(object_state)
         return ObjectState(object_state['id'],
                            object_state.objclass,
-                           next_pose)
+                           next_pose,
+                           time=object_state.time+1)
 
     def _next_pose(self, object_state):
-        if object_state.pose in self._indices:
-            index = self._indices[object_state.pose]
+        if object_state.time < 0:
+            raise ValueError("Unexpected. Static object should not have motion policy")
+        if object_state.pose in self._points_set:
+            index = object_state.time % len(self._ordered_points)
             next_index = self.next_index(index)
             return self._ordered_points[next_index], next_index
         else:
@@ -45,12 +44,12 @@ class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
         return random.randint(0, len(self._ordered_points)-1)
 
     def probability(self, next_object_state, cur_object_state):
-        if next_object_state.pose not in self._indices\
-           or cur_object_state.pose not in self._indices:
+        if next_object_state.pose not in self._points_set\
+           or cur_object_state.pose not in self._points_set:
             return self._epsilon
         
-        next_i = self._indices[next_object_state.pose]
-        cur_i = self._indices[cur_object_state.pose]
+        next_i = next_object_state.time % len(self._ordered_points)
+        cur_i = cur_object_state.time % len(self._ordered_points)
         # If the indices are correct
         if next_i == self.next_index(cur_i):
             # If the poses match with the pose list in this motion policy

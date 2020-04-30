@@ -209,6 +209,10 @@ xx....x.....Dxx
 )
 
 
+def path_generator(worldstr, obj, waypoints, loop=True):
+    """Returns a list of """
+
+
 def random_world(width, length, num_obj, num_obstacles,
                  robot_char="r"):
     worldstr = [[ "." for i in range(width)] for j in range(length)]

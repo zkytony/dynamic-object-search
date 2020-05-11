@@ -3,13 +3,13 @@ Uses the domain, models, and agent/environment
 to actually define the POMDP problem for multi-object search.
 Then, solve it using POUCT or POMCP."""
 import pomdp_py
-from .env.env import *
-from .env.visual import *
-from .agent.agent import *
-from .example_worlds import *
-from .domain.observation import *
-from .models.components.grid_map import *
-from .models.dynamic_transition_model import *
+from dynamic_mos.env.env import *
+from dynamic_mos.env.visual import *
+from dynamic_mos.agent.agent import *
+from dynamic_mos.dynamic_worlds import *
+from dynamic_mos.domain.observation import *
+from dynamic_mos.models.components.grid_map import GridMap
+from dynamic_mos.models.dynamic_transition_model import *
 import argparse
 import time
 import random
@@ -32,17 +32,18 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     could construct an Environment object and give None to
     the object poses.
     """
-    def __init__(self, robot_id, env=None, grid_map=None,
+    def __init__(self, robot_id, env=None, grid_map_str=None,
                  sensors=None, sigma=0.01, epsilon=1,
                  belief_rep="histogram", prior={}, num_particles=100,
-                 agent_has_map=False, motion_policies_dict={}): # TODO: motion_policies_dict is weird.
+                 agent_has_map=False,
+                 motion_policies_dict={}): # TODO: motion_policies_dict is weird.
         """
         Args:
             robot_id (int or str): the id of the agent that will solve this MosOOPOMDP.
                 If it is a `str`, it will be interpreted as an integer using `interpret_robot_id`
                 in env/env.py.
             env (MosEnvironment): the environment. 
-            grid_map (str): Search space description. See env/env.py:interpret. An example:
+            grid_map_str (str): Search space description. See env/env.py:interpret. An example:
                 rx...
                 .x.xT
                 .....
@@ -67,10 +68,11 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
             num_particles (int): setting for the particle belief representation
         """
         if env is None:
-            assert grid_map is not None and sensors is not None,\
+            assert grid_map_str is not None and sensors is not None,\
                 "Since env is not provided, you must provide string descriptions"\
                 "of the world and sensors."
-            worldstr = equip_sensors(grid_map, sensors)
+            worldstr = equip_sensors(grid_map_str, sensors)
+            # TODO FIX
             env = interpret(worldstr, motion_policies_dict=motion_policies_dict)
 
         # construct prior
@@ -88,9 +90,9 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
         # only defined over a single agent. Perhaps, MultiAgent is just a kind
         # of Agent, which will make the implementation of multi-agent POMDP cleaner.
         robot_id = robot_id if type(robot_id) == int else interpret_robot_id(robot_id)
-        grid_map = GridMap(env.width, env.length,
-                           {objid: env.state.pose(objid)
-                            for objid in env.obstacles}) if agent_has_map else None
+        agent_grid_map = GridMap(env.width, env.length,
+                                 {objid: env.state.pose(objid)
+                                  for objid in env.obstacles}) if agent_has_map else None
         agent = MosAgent(robot_id,
                          env.state.object_states[robot_id],
                          env.target_objects,
@@ -101,7 +103,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                          belief_rep=belief_rep,
                          prior=prior,
                          num_particles=num_particles,
-                         grid_map=grid_map,
+                         grid_map=agent_grid_map,
                          dynamic_object_ids=env.dynamic_object_ids,
                          motion_policies=env.dynamic_object_motion_policies)
         super().__init__(agent, env,
@@ -298,19 +300,20 @@ def unittest():
         if not os.path.exists(save_path):
             os.makedirs(save_path)
         
-    grid_map, robot_char, motion_policies_dict = dynamic_world_5 #random_world(14, 14, 3, 5)
-    laserstr = make_laser_sensor(90, (1, 2), 0.5, False)
+    grid_map_str, robot_char, motion_policies_dict = dynamic_world_6
+    laserstr = make_laser_sensor(90, (1, 4), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
                                 sigma=0.01,  # observation model parameter
                                 epsilon=1.0, # observation model parameter
-                                grid_map=grid_map,
+                                grid_map_str=grid_map_str,
                                 sensors={robot_char: laserstr},
+                                # TODO FIX
                                 motion_policies_dict=motion_policies_dict,
-                                prior="informed",
+                                prior="uniform",
                                 agent_has_map=True)
     solve(problem,
-          max_depth=15,
+          max_depth=20,
           discount_factor=0.95,
           planning_time=0.9,
           exploration_const=1000,
@@ -321,3 +324,4 @@ def unittest():
 
 if __name__ == "__main__":
     unittest()
+

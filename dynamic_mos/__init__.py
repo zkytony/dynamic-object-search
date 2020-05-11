@@ -12,3 +12,4 @@ from dynamic_mos.models.transition_model import *
 from dynamic_mos.models.reward_model import *
 from dynamic_mos.models.policy_model import *
 from dynamic_mos.models.observation_model import *
+from dynamic_mos.problem import *

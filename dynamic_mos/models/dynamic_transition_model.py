@@ -41,22 +41,21 @@ class DynamicMosTransitionModel(pomdp_py.OOTransitionModel):
     def __init__(self,
                  dim, sensors,
                  static_object_ids,
-                 dynamic_object_ids,
                  motion_policies,
                  epsilon=1e-9):
         """
         sensors (dict): robot_id -> Sensor
-        for_env (bool): True if this is a robot transition model used by the
-             Environment.  see RobotTransitionModel for details.
+        static_object_ids (set): Set of static object ids
+        motion_policies (dict): Map from dynamic object id to MotionPolicy
         """
         self._sensors = sensors
-        self.dynamic_object_ids = dynamic_object_ids
+        self.dynamic_object_ids = set(motion_policies.keys())
         self.dynamic_object_motion_policies = motion_policies
         transition_models = {}
         for objid in static_object_ids:
             if objid not in sensors:
                 transition_models[objid] = StaticObjectTransitionModel(objid, epsilon=epsilon)
-        for objid in dynamic_object_ids:
+        for objid in self.dynamic_object_ids:
             if objid not in sensors:
                 transition_models[objid] = DynamicObjectTransitionModel(objid,
                                                                         motion_policies[objid],

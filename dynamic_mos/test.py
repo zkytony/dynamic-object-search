@@ -42,7 +42,6 @@ def create_two_room_world(room_width, room_height,
     for row_chars in lines:
         finalstr.append("".join(row_chars))
     finalstr = "\n".join(finalstr)
-    print(finalstr)
 
     # get a set of free locations
     free_locations = set(tuple(reversed(loc))
@@ -52,17 +51,19 @@ def create_two_room_world(room_width, room_height,
 
 def test():
     NTRIALS = 30
-    cases = {(2, 2, 2, 1), (3, 3, 3, 1), (4, 4, 4, 1), (5, 5, 5, 2), (6, 6, 6, 2)}
+    cases = [(2, 2, 2, 1), (3, 3, 3, 1), (4, 4, 4, 1), (5, 5, 5, 2), (6, 6, 6, 2)]
     results = {}
     for args in cases:
         results[args] = {"trials": []}
         for i in range(NTRIALS):
             mapstr, free_locations = create_two_room_world(*args)
             robot_pose = random.sample(free_locations, 1)[0]
+            objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
+            objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]
             world = (place_objects(mapstr,
-                                   {"r": random.sample(free_locations, 1)[0],
-                                    "D": random.sample(free_locations, 1)[0],
-                                    "E": random.sample(free_locations, 1)[0]}),
+                                   {"r": robot_pose,
+                                    "D": objD_pose,
+                                    "E": objE_pose}),
                      "r",
                      {"D": ("random", 0.4),
                       "E": ("random", 0.4)})

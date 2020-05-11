@@ -34,6 +34,10 @@ class GridMap:
     @property
     def obstacle_poses(self):
         return self._obstacle_poses
+    
+    @property
+    def obstacles(self):
+        return self._obstacles 
 
     def valid_motions(self, robot_id, robot_pose, all_motion_actions):
         """

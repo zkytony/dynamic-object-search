@@ -33,6 +33,55 @@ class MosOOBelief(pomdp_py.OOBelief):
         return MosOOState(pomdp_py.OOBelief.random(self, **kwargs).object_states)
 
 
+### Belief Update ###
+def belief_update(agent, real_action, real_observation, next_robot_state,
+                  planner, dynamic_object_ids=set({})):
+    """Updates the agent's belief; The belief update may happen
+    through planner update (e.g. when planner is POMCP)."""
+    # Updates the planner; In case of POMCP, agent's belief is also updated.
+    planner.update(agent, real_action, real_observation)
+
+    # Update agent's belief, when planner is not POMCP
+    if not isinstance(planner, pomdp_py.POMCP):
+        # Update belief for every undetected object
+        for objid in agent.cur_belief.object_beliefs:
+            if objid in next_robot_state['objects_found']:
+                continue  # already found this object
+            belief_obj = agent.cur_belief.object_belief(objid)
+            if isinstance(belief_obj, pomdp_py.Histogram):
+                if objid == agent.robot_id:
+                    # Assuming the agent can observe its own state:
+                    new_belief = pomdp_py.Histogram({next_robot_state: 1.0})
+                else:
+                    # This is doing
+                    #    B(si') = normalizer * O(oi|si',sr',a) * sum_s T(si'|s,a)*B(si)
+                    static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
+
+                    # The following sets up a state space where the time step have advanced.
+                    next_state_space = None
+                    if not static_transition:
+                        next_state_space = set({})
+                        for state in belief_obj:
+                            next_state = copy.deepcopy(state)
+                            next_state["time"] = state["time"] + 1
+                            next_state_space.add(next_state)
+                    
+                    new_belief = pomdp_py.update_histogram_belief(
+                        belief_obj, real_action,
+                        real_observation.for_obj(objid),
+                        agent.observation_model[objid],
+                        agent.transition_model[objid],
+                        # The agent knows the objects are static.
+                        static_transition=static_transition,
+                        next_state_space=next_state_space,
+                        oargs={"next_robot_state": next_robot_state})
+            else:
+                raise ValueError("Unexpected program state. Are you using %s for %s?"
+                                 % (belief_rep, str(type(planner))))
+
+            agent.cur_belief.set_object_belief(objid, new_belief)    
+
+
 def initialize_belief(agent, dim, robot_id, object_ids, prior={},
                       representation="histogram", robot_orientations={},
                       num_particles=100, grid_map=None):

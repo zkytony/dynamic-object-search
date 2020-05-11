@@ -25,8 +25,9 @@ class MosAgent(pomdp_py.Agent):
                  prior={},       # prior belief, as defined in belief.py:initialize_belief
                  num_particles=100,  # used if the belief representation is particles
                  grid_map=None,  # GridMap used to avoid collision with obstacles (None if not provided)
-                 dynamic_object_ids=set({}),  # set of object ids that are dynamic objects
-                 motion_policies={}):  # map from dynamic object id to MotionPolicy
+                 motion_policies={},  # map from dynamic object id to MotionPolicy
+                 big=100,
+                 small=1):
         self.robot_id = robot_id
         self._object_ids = object_ids
         self.sensor = sensor
@@ -37,12 +38,11 @@ class MosAgent(pomdp_py.Agent):
         prior[robot_id] = {init_robot_state.pose: 1.0}
         rth = init_robot_state.pose[2]
 
-        if len(dynamic_object_ids) > 0:
-            static_object_ids = self._object_ids - dynamic_object_ids
+        if len(motion_policies) > 0:
+            static_object_ids = self._object_ids - set(motion_policies.keys())
             transition_model = DynamicMosTransitionModel(self._dim,
                                                          {self.robot_id: self.sensor},
                                                          static_object_ids,
-                                                         dynamic_object_ids,
                                                          motion_policies)
         else:
             transition_model = MosTransitionModel(self._dim,
@@ -53,7 +53,8 @@ class MosAgent(pomdp_py.Agent):
                                                 self._object_ids,
                                                 sigma=sigma,
                                                 epsilon=epsilon)
-        reward_model = GoalRewardModel(self._object_ids, robot_id=self.robot_id)
+        reward_model = GoalRewardModel(self._object_ids, robot_id=self.robot_id,
+                                       big=big, small=small)
         policy_model = PolicyModel(self.robot_id, grid_map=grid_map)
 
         super().__init__(None, policy_model,

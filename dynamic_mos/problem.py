@@ -10,6 +10,7 @@ from dynamic_mos.dynamic_worlds import *
 from dynamic_mos.domain.observation import *
 from dynamic_mos.models.components.grid_map import GridMap
 from dynamic_mos.models.dynamic_transition_model import *
+from dynamic_mos.experiments.runner import DynamicMosTrial
 import argparse
 import time
 import random
@@ -35,8 +36,9 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     def __init__(self, robot_char, env=None, grid_map_str=None,
                  sensors=None, sigma=0.01, epsilon=1,
                  belief_rep="histogram", prior={}, num_particles=100,
+                 big=100, small=1,
                  agent_has_map=False,
-                 motion_policies_dict={}): # TODO: motion_policies_dict is weird.
+                 motion_policies_dict={}):
         """
         Args:
             robot_char (int or str): the id of the agent that will solve this MosOOPOMDP.
@@ -67,13 +69,36 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                 prior will be given. For "informed", a perfect prior will be given.
             num_particles (int): setting for the particle belief representation
         """
+        grid_map = None
         if env is None:
             assert grid_map_str is not None and sensors is not None,\
                 "Since env is not provided, you must provide string descriptions"\
                 "of the world and sensors."
             worldstr = equip_sensors(grid_map_str, sensors)
-            # TODO FIX
-            env = interpret(worldstr, motion_policies_dict=motion_policies_dict)
+            # Interpret the world string
+            dim, robots, objects, obstacles, sensors, motion_policies\
+                = interpret(worldstr, motion_policies_dict)
+            # Grid map
+            grid_map = GridMap(dim[0], dim[1],
+                               {objid: objects[objid].pose
+                                for objid in obstacles})
+            # Create motion policies for dynamic objects
+            for objid in motion_policies:
+                policy_type = motion_policies[objid][0]
+                if policy_type == "iterative":
+                    motion_policies[objid] =\
+                        IterativeMotionPolicy(motion_policies[objid][1])
+                elif policy_type == "random":
+                    motion_policies[objid] =\
+                        RandomStayPolicy(grid_map, motion_policies[objid][1])
+                else:
+                    raise ValueError("Unrecognized motion policy type")
+            # Make init state
+            init_state = MosOOState({**objects, **robots})
+            env = MosEnvironment(dim,
+                                 init_state, sensors,
+                                 grid_map=grid_map,
+                                 motion_policies=motion_policies)
 
         # construct prior
         if type(prior) == str:
@@ -90,9 +115,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
         # only defined over a single agent. Perhaps, MultiAgent is just a kind
         # of Agent, which will make the implementation of multi-agent POMDP cleaner.
         robot_id = robot_id if type(robot_char) == int else interpret_robot_id(robot_char)
-        agent_grid_map = GridMap(env.width, env.length,
-                                 {objid: env.state.pose(objid)
-                                  for objid in env.obstacles}) if agent_has_map else None
+        agent_grid_map = env.grid_map if agent_has_map else None
         agent = MosAgent(robot_id,
                          env.state.object_states[robot_id],
                          env.target_objects,
@@ -104,194 +127,13 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                          prior=prior,
                          num_particles=num_particles,
                          grid_map=agent_grid_map,
-                         dynamic_object_ids=env.dynamic_object_ids,
-                         motion_policies=env.dynamic_object_motion_policies)
+                         motion_policies=env.dynamic_object_motion_policies,
+                         small=small,
+                         big=big)
         super().__init__(agent, env,
                          name="MOS(%d,%d,%d)" % (env.width, env.length, len(env.target_objects)))
 
 
-### Belief Update ###
-def belief_update(agent, real_action, real_observation, next_robot_state,
-                  planner, dynamic_object_ids=set({})):
-    """Updates the agent's belief; The belief update may happen
-    through planner update (e.g. when planner is POMCP)."""
-    # Updates the planner; In case of POMCP, agent's belief is also updated.
-    planner.update(agent, real_action, real_observation)
-
-    # Update agent's belief, when planner is not POMCP
-    if not isinstance(planner, pomdp_py.POMCP):
-        # Update belief for every undetected object
-        for objid in agent.cur_belief.object_beliefs:
-            if objid in next_robot_state['objects_found']:
-                continue  # already found this object
-            belief_obj = agent.cur_belief.object_belief(objid)
-            if isinstance(belief_obj, pomdp_py.Histogram):
-                if objid == agent.robot_id:
-                    # Assuming the agent can observe its own state:
-                    new_belief = pomdp_py.Histogram({next_robot_state: 1.0})
-                else:
-                    # This is doing
-                    #    B(si') = normalizer * O(oi|si',sr',a) * sum_s T(si'|s,a)*B(si)
-                    static_transition = (objid != agent.robot_id) and (objid not in dynamic_object_ids)
-
-                    # The following sets up a state space where the time step have advanced.
-                    next_state_space = None
-                    if not static_transition:
-                        next_state_space = set({})
-                        for state in belief_obj:
-                            next_state = copy.deepcopy(state)
-                            next_state["time"] = state["time"] + 1
-                            next_state_space.add(next_state)
-                    
-                    new_belief = pomdp_py.update_histogram_belief(
-                        belief_obj, real_action,
-                        real_observation.for_obj(objid),
-                        agent.observation_model[objid],
-                        agent.transition_model[objid],
-                        # The agent knows the objects are static.
-                        static_transition=static_transition,
-                        next_state_space=next_state_space,
-                        oargs={"next_robot_state": next_robot_state})
-            else:
-                raise ValueError("Unexpected program state. Are you using %s for %s?"
-                                 % (belief_rep, str(type(planner))))
-
-            agent.cur_belief.set_object_belief(objid, new_belief)
-
-
-### Solve the problem with POUCT/POMCP planner ###
-### This is the main online POMDP solver logic ###
-def solve(problem,
-          max_depth=10,  # planning horizon
-          discount_factor=0.99,
-          planning_time=1.,       # amount of time (s) to plan each step
-          exploration_const=1000, # exploration constant
-          visualize=True,
-          max_time=120,  # maximum amount of time allowed to solve the problem
-          max_steps=500, # maximum number of planning steps the agent can take.
-          save_path=None):  # path to directory to save screenshots for each step
-    """
-    This function terminates when:
-    - maximum time (max_time) reached; This time includes planning and updates
-    - agent has planned `max_steps` number of steps
-    - agent has taken n FindAction(s) where n = number of target objects.
-
-    Args:
-        visualize (bool) if True, show the pygame visualization.
-    """
-
-    random_objid = random.sample(problem.env.target_objects, 1)[0]
-    random_object_belief = problem.agent.belief.object_beliefs[random_objid]
-    if isinstance(random_object_belief, pomdp_py.Histogram):
-        # Use POUCT
-        belief_rep = "histogram"
-        planner = pomdp_py.POUCT(max_depth=max_depth,
-                                 discount_factor=discount_factor,
-                                 planning_time=planning_time,
-                                 exploration_const=exploration_const,
-                                 rollout_policy=problem.agent.policy_model)  # Random by default
-    elif isinstance(random_object_belief, pomdp_py.Particles):
-        # Use POMCP
-        belief_rep = "particles"
-        planner = pomdp_py.POMCP(max_depth=max_depth,
-                                 discount_factor=discount_factor,
-                                 planning_time=planning_time,
-                                 exploration_const=exploration_const,
-                                 rollout_policy=problem.agent.policy_model)  # Random by default
-    else:
-        raise ValueError("Unsupported object belief type %s" % str(type(random_object_belief)))
-
-    robot_id = problem.agent.robot_id    
-    if visualize:
-        viz = MosViz(problem.env, controllable=False)  # controllable=False means no keyboard control.
-        if viz.on_init() == False:
-            raise Exception("Environment failed to initialize")
-        viz.update(robot_id,
-                   None,
-                   None,
-                   None,
-                   problem.agent.cur_belief)        
-        viz.on_render()
-
-    _time_used = 0
-    _find_actions_count = 0
-    _total_reward = 0  # total, undiscounted reward
-    for i in range(max_steps):
-        # Plan action
-        _start = time.time()
-        real_action = planner.plan(problem.agent)
-        _time_used += time.time() - _start
-        if _time_used > max_time:
-            break  # no more time to update.
-        
-        # Execute action
-        reward = problem.env.state_transition(real_action, execute=True,
-                                              robot_id=robot_id)
-
-        # Receive observation
-        _start = time.time()
-        real_observation = \
-            problem.env.provide_observation(problem.agent.observation_model, real_action)
-
-        # Updates
-        problem.agent.clear_history()  # truncate history
-        problem.agent.update_history(real_action, real_observation)
-        belief_update(problem.agent, real_action, real_observation,
-                      problem.env.state.object_states[robot_id], planner,
-                      # We assume the agent knows which objects are dynamic
-                      dynamic_object_ids=problem.env.dynamic_object_ids)
-        _time_used += time.time() - _start
-
-        # Info and render
-        _total_reward += reward
-        if isinstance(real_action, FindAction):
-            _find_actions_count += 1
-        print("==== Step %d ====" % (i+1))
-        print("Robot State: %s" % str(problem.env.state.object_states[robot_id]))
-        print("Action: %s" % str(real_action))
-        print("Observation: %s" % str(real_observation))
-        print("Reward: %s" % str(reward))
-        print("Reward (Cumulative): %s" % str(_total_reward))
-        print("Find Actions Count: %d" %  _find_actions_count)
-        if isinstance(planner, pomdp_py.POUCT):
-            print("__num_sims__: %d" % planner.last_num_sims)
-            
-        if visualize:
-            # This is used to show the sensing range; Not sampled
-            # according to observation model.
-            robot_pose = problem.env.state.object_states[robot_id].pose
-            viz_observation = MosOOObservation({})
-            if isinstance(real_action, LookAction) or isinstance(real_action, FindAction):
-                viz_observation = \
-                    problem.env.sensors[robot_id].observe(robot_pose,
-                                                          problem.env.state)
-            viz.update(robot_id,
-                       real_action,
-                       real_observation,
-                       viz_observation,
-                       problem.agent.cur_belief)
-            viz.on_loop()
-            img = viz.on_render()
-            if save_path is not None:
-                # Rotate the image ccw 90 degree and convert color
-                img = img.astype(np.float32)
-                img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)  # rotate 90deg clockwise
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                cv2.imwrite(os.path.join(save_path, "step_%d.png" % (i)), img)
-            
-        # Termination check
-        if set(problem.env.state.object_states[robot_id].objects_found)\
-           == problem.env.target_objects:
-            print("Done!")
-            break
-        if _find_actions_count >= len(problem.env.target_objects):
-            print("FindAction limit reached.")
-            break
-        if _time_used > max_time:
-            print("Maximum time reached.")
-            break
-    return _total_reward
-            
 # Test
 def unittest(world=None):
     # random world
@@ -313,16 +155,18 @@ def unittest(world=None):
                                 # TODO FIX
                                 motion_policies_dict=motion_policies_dict,
                                 prior="uniform",
-                                agent_has_map=True)
-    _total_reward = solve(problem,
-                          max_depth=20,
-                          discount_factor=0.95,
-                          planning_time=0.9,
-                          exploration_const=1000,
-                          visualize=True,
-                          max_time=120,
-                          max_steps=500,
-                          save_path=save_path)
+                                agent_has_map=True,
+                                big=100,
+                                small=1)
+    _total_reward = DynamicMosTrial.solve(problem,
+                                          max_depth=20,
+                                          discount_factor=0.95,
+                                          planning_time=0.9,
+                                          exploration_const=100,
+                                          visualize=True,
+                                          max_time=120,
+                                          max_steps=500,
+                                          save_path=save_path)
     return _total_reward
 
 if __name__ == "__main__":

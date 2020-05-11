@@ -69,4 +69,71 @@ class GridMap:
         if position in self.obstacle_poses:
             return False
         return True
+
+    def _get_neighbors(self, position, all_motion_actions):
+        neighbors = {}
+        for motion_action in all_motion_actions:
+            if not isinstance(motion_action, MotionAction):
+                raise ValueError("This (%s) is not a motion action" % str(motion_action))
+
+            next_pose = RobotTransitionModel.if_move_by(None, None,
+                                                        motion_action,
+                                                        (self.width, self.length),
+                                                        check_collision=False,
+                                                        robot_pose=(*position, 0))
+            if next_pose[:2] not in self._obstacle_poses:
+                neighbors[next_pose[:2]] = motion_action
+        return neighbors
+        
     
+    def path_between(self, position1, position2, all_motion_actions, return_actions=True):
+        """Note that for the return_actions=True case to return reasonable
+        actions, the motion actions scheme needs to be `xy`, i.e. along the axes"""
+        # Finds a path between position1 and position2. Uses the Dijkstra's algorithm.
+        V = set({(x,y)    # all valid positions
+                 for x in range(self.width) 
+                 for y in range(self.length)
+                 if self.within_bounds((x,y)) and (x,y) not in self._obstacle_poses})
+        position1 = position1[:2]  # If it is robot pose then it has length 3.
+        S = set({})
+        d = {v:float("inf")
+             for v in V
+             if v != position1}
+        d[position1] = 0
+        prev = {position1: None}
+        while len(S) < len(V):
+            diff_set = V - S
+            try:
+                v = min(diff_set, key=lambda v: d[v])
+            except:
+                import pdb; pdb.set_trace()
+            S.add(v)
+            neighbors = self._get_neighbors(v, all_motion_actions)
+            for w in neighbors:
+                motion_action = neighbors[w]
+                cost_vw = motion_action.distance_cost
+                if d[v] + cost_vw < d[w]:
+                    d[w] = d[v] + cost_vw
+                    prev[w] = (v, motion_action)
+
+        if return_actions:
+            # Return a sequence of actions that moves the robot from position1 to position2.
+            actions = []
+            pair = prev[position2]
+            while pair is not None:
+                position, action = pair
+                actions.append(action)
+                pair = prev[position]
+            return list(reversed(actions))
+        else:
+            # Returns the grid cells along the path
+            cells = []
+            pair = prev[position2]
+            while pair is not None:
+                position, _ = pair
+                cells.append(position)
+                pair = prev[position]
+            return list(reversed(cells))
+        
+        
+        

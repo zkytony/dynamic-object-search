@@ -2,6 +2,7 @@ from sciex import Experiment, Trial, Event, Result, YamlResult, PklResult, PostP
 from dynamic_mos import *
 from dynamic_mos.dynamic_worlds import *
 from dynamic_mos.experiments.result_types import *
+from dynamic_mos.experiments.baselines.handcraft import *
 from dynamic_mos.test import create_two_room_world
 import copy
 import time
@@ -37,6 +38,7 @@ class DynamicMosTrial(Trial):
     @classmethod
     def solve(cls,
               problem,
+              planner_type="pouct",
               max_depth=10,  # planning horizon
               discount_factor=0.99,
               planning_time=1.,       # amount of time (s) to plan each step
@@ -59,22 +61,24 @@ class DynamicMosTrial(Trial):
 
         random_objid = random.sample(problem.env.target_objects, 1)[0]
         random_object_belief = problem.agent.belief.object_beliefs[random_objid]
-        if isinstance(random_object_belief, pomdp_py.Histogram):
+        if planner_type == "pouct":
             # Use POUCT
-            belief_rep = "histogram"
             planner = pomdp_py.POUCT(max_depth=max_depth,
                                      discount_factor=discount_factor,
                                      planning_time=planning_time,
                                      exploration_const=exploration_const,
                                      rollout_policy=problem.agent.policy_model)  # Random by default
-        elif isinstance(random_object_belief, pomdp_py.Particles):
+        elif planner_type == "pomcp":
             # Use POMCP
-            belief_rep = "particles"
             planner = pomdp_py.POMCP(max_depth=max_depth,
                                      discount_factor=discount_factor,
                                      planning_time=planning_time,
                                      exploration_const=exploration_const,
                                      rollout_policy=problem.agent.policy_model)  # Random by default
+        elif planner_type == "random":
+            planner = RandomPlanner(problem.env.grid_map)
+        elif planner_type == "greedy":
+            planner = GreedyPlanner(problem.env.grid_map)
         else:
             raise ValueError("Unsupported object belief type %s" % str(type(random_object_belief)))
 
@@ -214,7 +218,8 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                     "sensors": {robot_char: sensor},
                     "motion_policies_dict": motion_policies_dict,
                     "grid_map_str": grid_map_str}
-    solver_args = {"max_depth": kwargs.get("max_depth", 10),
+    solver_args = {"planner_type": planner_type,
+                   "max_depth": kwargs.get("max_depth", 10),
                    "discount_factor": kwargs.get("discount_factor", 0.99),
                    "planning_time": kwargs.get("planning_time", 0.7),
                    "exploration_const": kwargs.get("exploration_const", 100),
@@ -254,6 +259,7 @@ def unittest(world=None):
                                 big=100,
                                 small=1)
     _total_reward = DynamicMosTrial.solve(problem,
+                                          planner_type="greedy",
                                           max_depth=20,
                                           discount_factor=0.95,
                                           planning_time=0.9,

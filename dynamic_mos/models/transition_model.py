@@ -82,13 +82,17 @@ class RobotTransitionModel(pomdp_py.TransitionModel):
 
     @classmethod
     def if_move_by(cls, robot_id, state, action, dim,
-                   check_collision=True):
+                   check_collision=True, robot_pose=None):
         """Defines the dynamics of robot motion;
-        dim (tuple): the width, length of the search world."""
+        dim (tuple): the width, length of the search world.
+        """
         if not isinstance(action, MotionAction):
             raise ValueError("Cannot move robot with %s action" % str(type(action)))
 
-        robot_pose = state.pose(robot_id)
+        if state is None:
+            assert robot_pose is not None, "Either provide state or provide robot pose"
+        else:
+            robot_pose = state.pose(robot_id)
         rx, ry, rth = robot_pose
         if action.scheme == "xy":
             dx, dy, th = action.motion

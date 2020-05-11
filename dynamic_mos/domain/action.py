@@ -49,7 +49,7 @@ class MotionAction(Action):
     RIGHT = (0, math.pi/4) # right 45 deg
 
     def __init__(self, motion,
-                 scheme=MOTION_SCHEME, distance_cost=1,
+                 scheme=MOTION_SCHEME, distance_cost=STEP_SIZE,
                  motion_name=None):
         """
         motion (tuple): a tuple of floats that describes the motion;

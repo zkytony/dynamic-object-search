@@ -48,3 +48,6 @@ class PolicyModel(pomdp_py.RolloutPolicy):
 
     def rollout(self, state, history=None):
         return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
+
+    def all_motion_actions(self):
+        return ALL_MOTION_ACTIONS

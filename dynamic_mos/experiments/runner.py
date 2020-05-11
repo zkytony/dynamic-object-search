@@ -1,9 +1,11 @@
 from sciex import Experiment, Trial, Event, Result, YamlResult, PklResult, PostProcessingResult
 from dynamic_mos import *
-from .result_types import *
-from ..test import create_two_room_world
+from dynamic_mos.dynamic_worlds import *
+from dynamic_mos.experiments.result_types import *
+from dynamic_mos.test import create_two_room_world
 import copy
 import time
+import sys
 
 class DynamicMosTrial(Trial):
 
@@ -18,14 +20,12 @@ class DynamicMosTrial(Trial):
         problem_args = self._config["problem_args"]
         solver_args = self._config["solver_args"]
         world = self._config["world"]
-        grid_map_str, robot_char, motion_policies_dict = world
-        
+        _, robot_char, _ = world
+
         problem = DynamicMosOOPOMDP(robot_char,
-                                    motion_policies_dict=motion_policies_dict,
                                     **problem_args)
         if logging:
-            self.log_event(Event("Problem initialized."),
-                           kind=Event.SUCCESS)
+            self.log_event(Event("Problem initialized.", kind=Event.SUCCESS))
         # Solve the problem
         return DynamicMosTrial.solve(problem,
                                      trial_obj=self,
@@ -153,7 +153,7 @@ class DynamicMosTrial(Trial):
             if isinstance(planner, pomdp_py.POUCT):
                 _step_info += "   NumSims: %d" % planner.last_num_sims
             if logging:
-                trial_obj.log_event(Event("Trial %s | %s" % (self.name, _step_info)))
+                trial_obj.log_event(Event("Trial %s | %s" % (trial_obj.name, _step_info)))
             else:
                 print(_step_info)
 
@@ -185,15 +185,15 @@ class DynamicMosTrial(Trial):
             if set(problem.env.state.object_states[robot_id].objects_found)\
                == problem.env.target_objects:
                 if logging:
-                    trial_obj.log_event(Event("Trial %s | Task finished!\n\n" % (self.name)))
+                    trial_obj.log_event(Event("Trial %s | Task finished!\n\n" % (trial_obj.name)))
                 break
             if _find_actions_count >= len(problem.env.target_objects):
                 if logging:
-                    trial_obj.log_event(Event("Trial %s | Task ended; Used up Find actions.\n\n" % (self.name)))                
+                    trial_obj.log_event(Event("Trial %s | Task ended; Used up Find actions.\n\n" % (trial_obj.name)))                
                 break
             if _time_used > max_time:
                 if logging:
-                    trial_obj.log_event(Event("Trial %s | Task ended; Time limit reached.\n\n" % (self.name)))
+                    trial_obj.log_event(Event("Trial %s | Task ended; Time limit reached.\n\n" % (trial_obj.name)))
                 break
 
         results = [
@@ -211,8 +211,9 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                     "agent_has_map": kwargs.get("agent_has_map", True),
                     "big": kwargs.get("big", 1000),
                     "small": kwargs.get("small", 1),
-                    "sensor": {robot_char, sensor},
-                    "motion_policies_dict": motion_policies_dict}
+                    "sensors": {robot_char: sensor},
+                    "motion_policies_dict": motion_policies_dict,
+                    "grid_map_str": grid_map_str}
     solver_args = {"max_depth": kwargs.get("max_depth", 10),
                    "discount_factor": kwargs.get("discount_factor", 0.99),
                    "planning_time": kwargs.get("planning_time", 0.7),
@@ -226,3 +227,42 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                            config={"problem_args": problem_args,
                                    "solver_args": solver_args,
                                    "world": world})
+
+
+# Test
+def unittest(world=None):
+    # random world
+    save_path = None
+    if len(sys.argv) > 1:
+        save_path = sys.argv[1]
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+    if world is None:
+        world = dynamic_world_6
+    grid_map_str, robot_char, motion_policies_dict = world
+    laserstr = make_laser_sensor(90, (1, 4), 0.5, False)
+    proxstr = make_proximity_sensor(1, False)    
+    problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
+                                sigma=0.01,  # observation model parameter
+                                epsilon=1.0, # observation model parameter
+                                grid_map_str=grid_map_str,
+                                sensors={robot_char: laserstr},
+                                # TODO FIX
+                                motion_policies_dict=motion_policies_dict,
+                                prior="uniform",
+                                agent_has_map=True,
+                                big=100,
+                                small=1)
+    _total_reward = DynamicMosTrial.solve(problem,
+                                          max_depth=20,
+                                          discount_factor=0.95,
+                                          planning_time=0.9,
+                                          exploration_const=100,
+                                          visualize=True,
+                                          max_time=120,
+                                          max_steps=500,
+                                          save_path=save_path)
+    return _total_reward
+
+if __name__ == "__main__":
+    unittest()

@@ -4,13 +4,10 @@ to actually define the POMDP problem for multi-object search.
 Then, solve it using POUCT or POMCP."""
 import pomdp_py
 from dynamic_mos.env.env import *
-from dynamic_mos.env.visual import *
 from dynamic_mos.agent.agent import *
-from dynamic_mos.dynamic_worlds import *
 from dynamic_mos.domain.observation import *
 from dynamic_mos.models.components.grid_map import GridMap
 from dynamic_mos.models.dynamic_transition_model import *
-from dynamic_mos.experiments.runner import DynamicMosTrial
 import argparse
 import time
 import random
@@ -132,43 +129,3 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                          big=big)
         super().__init__(agent, env,
                          name="MOS(%d,%d,%d)" % (env.width, env.length, len(env.target_objects)))
-
-
-# Test
-def unittest(world=None):
-    # random world
-    save_path = None
-    if len(sys.argv) > 1:
-        save_path = sys.argv[1]
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-    if world is None:
-        world = dynamic_world_6
-    grid_map_str, robot_char, motion_policies_dict = world
-    laserstr = make_laser_sensor(90, (1, 4), 0.5, False)
-    proxstr = make_proximity_sensor(1, False)    
-    problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
-                                sigma=0.01,  # observation model parameter
-                                epsilon=1.0, # observation model parameter
-                                grid_map_str=grid_map_str,
-                                sensors={robot_char: laserstr},
-                                # TODO FIX
-                                motion_policies_dict=motion_policies_dict,
-                                prior="uniform",
-                                agent_has_map=True,
-                                big=100,
-                                small=1)
-    _total_reward = DynamicMosTrial.solve(problem,
-                                          max_depth=20,
-                                          discount_factor=0.95,
-                                          planning_time=0.9,
-                                          exploration_const=100,
-                                          visualize=True,
-                                          max_time=120,
-                                          max_steps=500,
-                                          save_path=save_path)
-    return _total_reward
-
-if __name__ == "__main__":
-    unittest()
-

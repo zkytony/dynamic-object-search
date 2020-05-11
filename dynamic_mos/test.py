@@ -1,6 +1,7 @@
 from dynamic_mos.problem import *
 import numpy as np
 import random
+import pickle
 
 def create_two_room_world(room_width, room_height,
                           hallway_width, hallway_height):
@@ -50,16 +51,29 @@ def create_two_room_world(room_width, room_height,
 
 
 def test():
-    mapstr, free_locations = create_two_room_world(5, 5, 4, 1)
-    robot_pose = random.sample(free_locations, 1)[0]
-    world = (place_objects(mapstr,
-                           {"r": random.sample(free_locations, 1)[0],
-                            "D": random.sample(free_locations, 1)[0],
-                            "E": random.sample(free_locations, 1)[0]}),
-             "r",
-             {"D": ("random", 0.5),
-              "E": ("random", 0.2)})
-    unittest(world)
+    NTRIALS = 30
+    cases = {(2, 2, 2, 1), (3, 3, 3, 1), (4, 4, 4, 1), (5, 5, 5, 2), (6, 6, 6, 2)}
+    results = {}
+    for args in cases:
+        results[args] = {"trials": []}
+        for i in range(NTRIALS):
+            mapstr, free_locations = create_two_room_world(*args)
+            robot_pose = random.sample(free_locations, 1)[0]
+            world = (place_objects(mapstr,
+                                   {"r": random.sample(free_locations, 1)[0],
+                                    "D": random.sample(free_locations, 1)[0],
+                                    "E": random.sample(free_locations, 1)[0]}),
+                     "r",
+                     {"D": ("random", 0.4),
+                      "E": ("random", 0.4)})
+            _total_reward = unittest(world)
+            results[args]["trials"].append(_total_reward)
+        results[args]["mean"] = np.mean(results[args]["trials"])
+        results[args]["std"] = np.std(results[args]["trials"])
+        results[args]["ntrials"] = np.std(NTRIALS)
+    print(results)
+    with open("results.pkl", "wb") as f:
+        pickle.dump(results, f)
 
 if __name__ == "__main__":
     test()

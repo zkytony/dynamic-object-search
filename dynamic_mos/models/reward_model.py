@@ -4,7 +4,7 @@ import pomdp_py
 from ..domain.action import *
 
 class MosRewardModel(pomdp_py.RewardModel):
-    def __init__(self, target_objects, big=1000, small=1, robot_id=None):
+    def __init__(self, target_objects, big=100, small=1, robot_id=None):
         """
         robot_id (int): This model is the reward for one agent (i.e. robot),
                         If None, then this model could be for the environment.

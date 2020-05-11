@@ -290,6 +290,7 @@ def solve(problem,
         if _time_used > max_time:
             print("Maximum time reached.")
             break
+    return _total_reward
             
 # Test
 def unittest(world=None):
@@ -313,15 +314,16 @@ def unittest(world=None):
                                 motion_policies_dict=motion_policies_dict,
                                 prior="uniform",
                                 agent_has_map=True)
-    solve(problem,
-          max_depth=20,
-          discount_factor=0.95,
-          planning_time=0.9,
-          exploration_const=1000,
-          visualize=True,
-          max_time=120,
-          max_steps=500,
-          save_path=save_path)
+    _total_reward = solve(problem,
+                          max_depth=20,
+                          discount_factor=0.95,
+                          planning_time=0.9,
+                          exploration_const=1000,
+                          visualize=True,
+                          max_time=120,
+                          max_steps=500,
+                          save_path=save_path)
+    return _total_reward
 
 if __name__ == "__main__":
     unittest()

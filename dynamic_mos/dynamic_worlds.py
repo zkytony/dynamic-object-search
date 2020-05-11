@@ -70,8 +70,8 @@ static_world_5 = ((place_objects(map2,
 
 dynamic_world_6 = (place_objects(map2,
                                  {"r": (2,1),
-                                  "D": (12,3),
+                                  "D": (3,3),
                                   "E": (9,1)}),
                    "r",
-                   {"D": ("random", 0.2),
+                   {"D": ("random", 0.5),
                     "E": ("iterative", [(9,1),(9,2),(9,3),(10,3),(11,3),(11,2),(11,1),(10,1)])})

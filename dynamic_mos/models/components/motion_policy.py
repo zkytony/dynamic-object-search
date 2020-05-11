@@ -91,7 +91,8 @@ class RandomStayPolicy(pomdp_py.GenerativeDistribution):
         for action in self._actions:
             next_object_pose = (object_state.pose[0] + action[0],
                                 object_state.pose[1] + action[1])
-            if next_object_pose not in self._grid_map.obstacle_poses:
+            if self._grid_map.within_bounds(next_object_pose)\
+               and next_object_pose not in self._grid_map.obstacle_poses:
                 candidate_actions.append((action, next_object_pose))
         return candidate_actions
 

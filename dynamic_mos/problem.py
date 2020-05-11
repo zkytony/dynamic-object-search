@@ -32,14 +32,14 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
     could construct an Environment object and give None to
     the object poses.
     """
-    def __init__(self, robot_id, env=None, grid_map_str=None,
+    def __init__(self, robot_char, env=None, grid_map_str=None,
                  sensors=None, sigma=0.01, epsilon=1,
                  belief_rep="histogram", prior={}, num_particles=100,
                  agent_has_map=False,
                  motion_policies_dict={}): # TODO: motion_policies_dict is weird.
         """
         Args:
-            robot_id (int or str): the id of the agent that will solve this MosOOPOMDP.
+            robot_char (int or str): the id of the agent that will solve this MosOOPOMDP.
                 If it is a `str`, it will be interpreted as an integer using `interpret_robot_id`
                 in env/env.py.
             env (MosEnvironment): the environment. 
@@ -89,7 +89,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
         # can keep track of the states of multiple agents, but a POMDP is still
         # only defined over a single agent. Perhaps, MultiAgent is just a kind
         # of Agent, which will make the implementation of multi-agent POMDP cleaner.
-        robot_id = robot_id if type(robot_id) == int else interpret_robot_id(robot_id)
+        robot_id = robot_id if type(robot_char) == int else interpret_robot_id(robot_char)
         agent_grid_map = GridMap(env.width, env.length,
                                  {objid: env.state.pose(objid)
                                   for objid in env.obstacles}) if agent_has_map else None
@@ -292,15 +292,16 @@ def solve(problem,
             break
             
 # Test
-def unittest():
+def unittest(world=None):
     # random world
     save_path = None
     if len(sys.argv) > 1:
         save_path = sys.argv[1]
         if not os.path.exists(save_path):
             os.makedirs(save_path)
-        
-    grid_map_str, robot_char, motion_policies_dict = dynamic_world_6
+    if world is None:
+        world = dynamic_world_6
+    grid_map_str, robot_char, motion_policies_dict = world
     laserstr = make_laser_sensor(90, (1, 4), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character

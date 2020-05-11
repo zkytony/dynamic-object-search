@@ -57,3 +57,12 @@ class GridMap:
                 # robot moved --> valid motion
                 valid.add(motion_action)
         return valid
+
+    def within_bounds(self, position):
+        if not (position[0] >= 0 and position[0] < self.width\
+                and position[1] >= 0 and position[1] < self.length):
+            return False
+        if position in self.obstacle_poses:
+            return False
+        return True
+    

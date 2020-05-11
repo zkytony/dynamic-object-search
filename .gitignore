@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+
+# Experiment results
+dynamic_mos/experiments/results
+dynamic_mos/results.pkl
+screenshots

@@ -268,7 +268,7 @@ def unittest(world=None, planner_type="pouct", sensor_range=4):
                                           max_depth=20,
                                           discount_factor=0.95,
                                           planning_time=0.9,
-                                          exploration_const=100,
+                                          exploration_const=200,
                                           visualize=True,
                                           max_time=120,
                                           max_steps=500,

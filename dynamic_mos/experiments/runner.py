@@ -178,6 +178,11 @@ class DynamicMosTrial(Trial):
                            problem.agent.cur_belief)
                 viz.on_loop()
                 img = viz.on_render()
+
+                # Sleep a bit, if the planner is greedy or random
+                if planner_type == "greedy" or planner_type == "random":
+                    time.sleep(0.1)
+                
                 if save_path is not None:
                     # Rotate the image ccw 90 degree and convert color
                     img = img.astype(np.float32)
@@ -235,7 +240,7 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
 
 
 # Test
-def unittest(world=None):
+def unittest(world=None, planner_type="pouct", sensor_range=4):
     # random world
     save_path = None
     if len(sys.argv) > 1:
@@ -245,7 +250,7 @@ def unittest(world=None):
     if world is None:
         world = dynamic_world_6
     grid_map_str, robot_char, motion_policies_dict = world
-    laserstr = make_laser_sensor(90, (1, 4), 0.5, False)
+    laserstr = make_laser_sensor(90, (1, sensor_range), 0.5, False)
     proxstr = make_proximity_sensor(1, False)    
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
                                 sigma=0.01,  # observation model parameter
@@ -259,7 +264,7 @@ def unittest(world=None):
                                 big=100,
                                 small=1)
     _total_reward = DynamicMosTrial.solve(problem,
-                                          planner_type="greedy",
+                                          planner_type=planner_type,
                                           max_depth=20,
                                           discount_factor=0.95,
                                           planning_time=0.9,

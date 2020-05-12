@@ -59,7 +59,6 @@ def main():
                 "discount_factor": 0.99,
                 "prior": "uniform"
             }
-
             
             # sensors
             sensors = [make_laser_sensor(90, (1, d), 0.5, False)
@@ -69,9 +68,11 @@ def main():
                 greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
                 pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)                
                 all_trials.append(pouct_trial)
+                all_trials.append(greedy_trial)
+                all_trials.append(random_trial)                
 
     # Generate scripts to run experiments and gather results
-    exp = Experiment("ScalabilityAA", all_trials, output_dir, verbose=True)
+    exp = Experiment("ScalabilityBB", all_trials, output_dir, verbose=True)
     exp.generate_trial_scripts(split=9)
     print("Find multiple computers to run these experiments.")
 

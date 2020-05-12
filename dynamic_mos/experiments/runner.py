@@ -48,7 +48,7 @@ class DynamicMosTrial(Trial):
               max_steps=500, # maximum number of planning steps the agent can take.
               save_path=None,  # path to directory to save screenshots for each step
               trial_obj=None,
-              logging=False): 
+              logging=False):
         """
         This function terminates when:
         - maximum time (max_time) reached; This time includes planning and updates
@@ -58,9 +58,7 @@ class DynamicMosTrial(Trial):
         Args:
             visualize (bool) if True, show the pygame visualization.
         """
-
-        random_objid = random.sample(problem.env.target_objects, 1)[0]
-        random_object_belief = problem.agent.belief.object_beliefs[random_objid]
+        robot_id = problem.agent.robot_id            
         if planner_type == "pouct":
             # Use POUCT
             planner = pomdp_py.POUCT(max_depth=max_depth,
@@ -68,13 +66,19 @@ class DynamicMosTrial(Trial):
                                      planning_time=planning_time,
                                      exploration_const=exploration_const,
                                      rollout_policy=problem.agent.policy_model)  # Random by default
-        elif planner_type == "pomcp":
-            # Use POMCP
-            planner = pomdp_py.POMCP(max_depth=max_depth,
+        elif planner_type == "pouct_preferred":
+            assert isinstance(problem.agent.policy_model, PreferredPolicyModel),\
+                "Using pouct_preferred. Agent policy should be preferred policy model."
+            planner = pomdp_py.POUCT(max_depth=max_depth,
                                      discount_factor=discount_factor,
                                      planning_time=planning_time,
                                      exploration_const=exploration_const,
-                                     rollout_policy=problem.agent.policy_model)  # Random by default
+                                     rollout_policy=problem.agent.policy_model,   # agent's policy model is preferred
+                                     action_prior=problem.agent.policy_model.action_prior)
+        elif planner_type == "pomcp":
+            raise ValueError("Not supported for now.")
+        elif planner_type == "pomcp_preferred":
+            raise ValueError("Not supported for now.")
         elif planner_type == "random":
             planner = RandomPlanner(problem.env.grid_map)
         elif planner_type == "greedy":
@@ -83,7 +87,6 @@ class DynamicMosTrial(Trial):
             raise ValueError("Unsupported object belief type %s" % str(type(random_object_belief)))
 
         # Visualization initialize
-        robot_id = problem.agent.robot_id    
         if visualize:
             viz = MosViz(problem.env, controllable=False)  # controllable=False means no keyboard control.
             if viz.on_init() == False:
@@ -251,7 +254,7 @@ def unittest(world=None, planner_type="pouct", sensor_range=4):
         world = dynamic_world_6
     grid_map_str, robot_char, motion_policies_dict = world
     laserstr = make_laser_sensor(90, (1, sensor_range), 0.5, False)
-    proxstr = make_proximity_sensor(1, False)    
+    proxstr = make_proximity_sensor(1, False)
     problem = DynamicMosOOPOMDP(robot_char,  # r is the robot character
                                 sigma=0.01,  # observation model parameter
                                 epsilon=1.0, # observation model parameter
@@ -262,7 +265,8 @@ def unittest(world=None, planner_type="pouct", sensor_range=4):
                                 prior="uniform",
                                 agent_has_map=True,
                                 big=100,
-                                small=1)
+                                small=1,
+                                use_preferred_policy=planner_type.endswith("_preferred"))
     _total_reward = DynamicMosTrial.solve(problem,
                                           planner_type=planner_type,
                                           max_depth=20,

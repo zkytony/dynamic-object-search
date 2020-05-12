@@ -27,7 +27,8 @@ class MosAgent(pomdp_py.Agent):
                  grid_map=None,  # GridMap used to avoid collision with obstacles (None if not provided)
                  motion_policies={},  # map from dynamic object id to MotionPolicy
                  big=100,
-                 small=1):
+                 small=1,
+                 action_prior=None):
         self.robot_id = robot_id
         self._object_ids = object_ids
         self.sensor = sensor
@@ -55,7 +56,10 @@ class MosAgent(pomdp_py.Agent):
                                                 epsilon=epsilon)
         reward_model = GoalRewardModel(self._object_ids, robot_id=self.robot_id,
                                        big=big, small=small)
-        policy_model = PolicyModel(self.robot_id, grid_map=grid_map)
+        if action_prior is None:
+            policy_model = PolicyModel(self.robot_id, grid_map=grid_map)
+        else:
+            policy_model = PreferredPolicyModel(action_prior)
 
         super().__init__(None, policy_model,
                          transition_model=transition_model,

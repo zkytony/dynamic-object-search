@@ -86,6 +86,6 @@ def test_single(case, ntrials=1, planner_type="pouct", sensor_range=4):
     
 
 if __name__ == "__main__":
-    test_single((6,6,6,2), ntrials=1, planner_type="pouct")
+    test_single((6,6,6,2), ntrials=1, planner_type="pouct_preferred")
     # test()
     

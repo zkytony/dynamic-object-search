@@ -70,8 +70,10 @@ class GridMap:
             return False
         return True
 
-    def _get_neighbors(self, position, all_motion_actions):
+    def get_neighbors(self, pose, all_motion_actions):
         neighbors = {}
+        if len(pose) == 2:
+            pose = (pose[0], pose[1], 0)
         for motion_action in all_motion_actions:
             if not isinstance(motion_action, MotionAction):
                 raise ValueError("This (%s) is not a motion action" % str(motion_action))
@@ -80,7 +82,7 @@ class GridMap:
                                                         motion_action,
                                                         (self.width, self.length),
                                                         check_collision=False,
-                                                        robot_pose=(*position, 0))
+                                                        robot_pose=pose)
             if next_pose[:2] not in self._obstacle_poses:
                 neighbors[next_pose[:2]] = motion_action
         return neighbors
@@ -89,7 +91,8 @@ class GridMap:
     def path_between(self, position1, position2, all_motion_actions, return_actions=True):
         """Note that for the return_actions=True case to return reasonable
         actions, the motion actions scheme needs to be `xy`, i.e. along the axes"""
-        # Finds a path between position1 and position2. Uses the Dijkstra's algorithm.
+        # Finds a path between position1 and position2.
+        # Uses the Dijkstra's algorithm.
         V = set({(x,y)    # all valid positions
                  for x in range(self.width) 
                  for y in range(self.length)
@@ -108,7 +111,7 @@ class GridMap:
             except:
                 import pdb; pdb.set_trace()
             S.add(v)
-            neighbors = self._get_neighbors(v, all_motion_actions)
+            neighbors = self.get_neighbors(v, all_motion_actions)
             for w in neighbors:
                 motion_action = neighbors[w]
                 cost_vw = motion_action.distance_cost
@@ -116,6 +119,7 @@ class GridMap:
                     d[w] = d[v] + cost_vw
                     prev[w] = (v, motion_action)
 
+        # Returns a path or a sequence of actions
         if return_actions:
             # Return a sequence of actions that moves the robot from position1 to position2.
             actions = []

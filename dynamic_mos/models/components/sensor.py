@@ -4,6 +4,7 @@ import math
 import numpy as np
 from ...domain.action import *
 from ...domain.observation import *
+from ...utils import *
 
 # Note that the occlusion of an object is implemented based on
 # whether a beam will hit an obstacle or some other object before
@@ -12,17 +13,6 @@ from ...domain.observation import *
 # is that, when occlusion is enabled, the sensor will definitely
 # not receive observation for some regions in the field of view
 # making it a more challenging situation to deal with.
-
-# Utility functions
-def euclidean_dist(p1, p2):
-    return math.sqrt(sum([(a - b)** 2 for a, b in zip(p1, p2)]))
-
-def to_rad(deg):
-    return deg * math.pi / 180.0
-
-def in_range(val, rang):
-    # Returns True if val is in range (a,b); Inclusive.
-    return val >= rang[0] and val <= rang[1]
 
 #### Sensors ####
 class Sensor:

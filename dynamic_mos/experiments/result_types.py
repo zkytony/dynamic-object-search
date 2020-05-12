@@ -1,6 +1,9 @@
 from sciex import Experiment, Trial, Event, Result, YamlResult, PklResult, PostProcessingResult
 import numpy as np
 import math
+from dynamic_mos.domain.state import *
+import os
+import json
 
 #### Actual results for experiments ####
 class RewardsResult(YamlResult):
@@ -37,7 +40,7 @@ class RewardsResult(YamlResult):
 
         # Save plain text
         with open(os.path.join(path, "rewards.txt"), "w") as f:
-            pprint(gathered_results, stream=f)
+            json.dump(gathered_results, f, indent=4, sort_keys=True)
 
         return True
 
@@ -61,8 +64,11 @@ class StatesResult(PklResult):
             all_counts = []
             for seed in results[specific_name]:
                 result = results[specific_name][seed]
-                count = len(result[-1].robot_state.objects_found)
-                all_counts.append(count)
+                for objid in result[-1].object_states:
+                    if isinstance(result[-1].object_states[objid], RobotState):
+                        count = len(result[-1].object_states[objid].objects_found)
+                        all_counts.append(count)
+                        break
             myresult[specific_name] = {'mean': np.mean(all_counts),
                                        'std': np.std(all_counts),
                                        '_size': len(all_counts)}
@@ -77,7 +83,7 @@ class StatesResult(PklResult):
             return "%.2f %s %.2f" % (entry["mean"], pm, entry["std"])
         
         with open(os.path.join(path, "detections.txt"), "w") as f:
-            pprint(gathered_results, stream=f)
+            json.dump(gathered_results, f, indent=4, sort_keys=True)            
 
         return True
 

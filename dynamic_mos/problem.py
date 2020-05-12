@@ -8,6 +8,7 @@ from dynamic_mos.agent.agent import *
 from dynamic_mos.domain.observation import *
 from dynamic_mos.models.components.grid_map import GridMap
 from dynamic_mos.models.dynamic_transition_model import *
+from dynamic_mos.models.policy_model import DynamicMosActionPrior
 import argparse
 import time
 import random
@@ -35,7 +36,10 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                  belief_rep="histogram", prior={}, num_particles=100,
                  big=100, small=1,
                  agent_has_map=False,
-                 motion_policies_dict={}):
+                 motion_policies_dict={},
+                 use_preferred_policy=False,
+                 num_visits_init=10,
+                 val_init="big"):
         """
         Args:
             robot_char (int or str): the id of the agent that will solve this MosOOPOMDP.
@@ -113,6 +117,11 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
         # of Agent, which will make the implementation of multi-agent POMDP cleaner.
         robot_id = robot_id if type(robot_char) == int else interpret_robot_id(robot_char)
         agent_grid_map = env.grid_map if agent_has_map else None
+        action_prior = None
+        if use_preferred_policy:
+            val_init = big if val_init == "big" else val_init
+            action_prior = DynamicMosActionPrior(robot_id, env.grid_map,
+                                                 num_visits_init, val_init)
         agent = MosAgent(robot_id,
                          env.state.object_states[robot_id],
                          env.target_objects,
@@ -126,6 +135,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                          grid_map=agent_grid_map,
                          motion_policies=env.dynamic_object_motion_policies,
                          small=small,
-                         big=big)
+                         big=big,
+                         action_prior=action_prior)
         super().__init__(agent, env,
                          name="MOS(%d,%d,%d)" % (env.width, env.length, len(env.target_objects)))

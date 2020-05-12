@@ -24,7 +24,7 @@ def create_two_room_world(room_width, room_height,
             room_width : room_width + hallway_width] = 0
     else:
         hallway_mid = hallway_height // 2
-        arr[room_mid - hallway_mid : room_mid,
+        arr[room_mid - hallway_mid : room_mid + hallway_mid,
             room_width : room_width + hallway_width] = 0
         
 

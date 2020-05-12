@@ -6,7 +6,6 @@ import os
 import random
 from dynamic_mos import *
 
-
 ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 
 VIZ = False
@@ -66,8 +65,10 @@ def main():
             for sensor in sensors:
                 random_trial = make_trial(trial_name, world, sensor, "random", **params)
                 greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
-                pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)                
+                pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)
+                pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct_preferred", **params)
                 all_trials.append(pouct_trial)
+                all_trials.append(pouct_preferred_trial)
                 all_trials.append(greedy_trial)
                 all_trials.append(random_trial)                
 

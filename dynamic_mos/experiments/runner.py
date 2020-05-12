@@ -3,10 +3,57 @@ from dynamic_mos import *
 from dynamic_mos.dynamic_worlds import *
 from dynamic_mos.experiments.result_types import *
 from dynamic_mos.experiments.baselines.handcraft import *
-from dynamic_mos.test import create_two_room_world
 import copy
 import time
 import sys
+
+
+def create_two_room_world(room_width, room_height,
+                          hallway_width, hallway_height):
+    """Creates a world with two rooms connected by a hallway"""
+    if hallway_height > room_height:
+        raise ValueError("hallway height should be smaller than room's.")
+
+    arr = np.ones((room_height,
+                   room_width * 2 + hallway_width,)).astype(int)
+    # Left Room
+    arr[:, :room_width] = 0
+
+    # Right Room
+    arr[:, room_width + hallway_width : room_width*2 + hallway_width] = 0
+    
+    # Hallway
+    room_mid = room_height // 2    
+    if hallway_height == 1:
+        arr[room_mid : room_mid + hallway_height,
+            room_width : room_width + hallway_width] = 0
+    else:
+        hallway_mid = hallway_height // 2
+        arr[room_mid - hallway_mid : room_mid + hallway_mid,
+            room_width : room_width + hallway_width] = 0
+        
+
+    lines = []
+    for y in range(arr.shape[0]):
+        line = []
+        for x in range(arr.shape[1]):
+            if arr[y,x] == 0:
+                line.append(".")
+            else:
+                line.append("x")
+        lines.append(line)
+
+    # Create the string
+    finalstr = []
+    for row_chars in lines:
+        finalstr.append("".join(row_chars))
+    finalstr = "\n".join(finalstr)
+
+    # get a set of free locations
+    free_locations = set(tuple(reversed(loc))
+                         for loc in np.vstack(np.where(arr == 0)).transpose())
+    return finalstr, free_locations
+
 
 class DynamicMosTrial(Trial):
 
@@ -66,7 +113,7 @@ class DynamicMosTrial(Trial):
                                      planning_time=planning_time,
                                      exploration_const=exploration_const,
                                      rollout_policy=problem.agent.policy_model)  # Random by default
-        elif planner_type == "pouct_preferred":
+        elif planner_type.startswith("pouct") and planner_type.endswith("preferred"):
             assert isinstance(problem.agent.policy_model, PreferredPolicyModel),\
                 "Using pouct_preferred. Agent policy should be preferred policy model."
             planner = pomdp_py.POUCT(max_depth=max_depth,
@@ -226,6 +273,9 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                     "sensors": {robot_char: sensor},
                     "motion_policies_dict": motion_policies_dict,
                     "grid_map_str": grid_map_str}
+    if planner_type.endswith("preferred"):
+        problem_args.update({"val_init": kwargs.get("val_init", "big"),
+                             "num_visits_init": kwargs.get("num_visits_init", 10)})
     solver_args = {"planner_type": planner_type,
                    "max_depth": kwargs.get("max_depth", 10),
                    "discount_factor": kwargs.get("discount_factor", 0.99),
@@ -266,7 +316,9 @@ def unittest(world=None, planner_type="pouct", sensor_range=4):
                                 agent_has_map=True,
                                 big=100,
                                 small=1,
-                                use_preferred_policy=planner_type.endswith("_preferred"))
+                                use_preferred_policy=planner_type.endswith("preferred"),
+                                val_init="big",
+                                num_visits_init=10)
     _total_reward = DynamicMosTrial.solve(problem,
                                           planner_type=planner_type,
                                           max_depth=20,

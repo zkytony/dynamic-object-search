@@ -134,7 +134,7 @@ class DynamicMosTrial(Trial):
             raise ValueError("Unsupported object belief type %s" % str(type(random_object_belief)))
 
         # Visualization initialize
-        if True:
+        if visualize:
             viz = MosViz(problem.env, controllable=False)  # controllable=False means no keyboard control.
             if viz.on_init() == False:
                 raise Exception("Environment failed to initialize")
@@ -212,7 +212,7 @@ class DynamicMosTrial(Trial):
                 print(_step_info)
 
             # Visualize
-            if True:
+            if visualize:
                 # This is used to show the sensing range; Not sampled
                 # according to observation model.
                 robot_pose = problem.env.state.object_states[robot_id].pose

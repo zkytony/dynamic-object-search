@@ -2,7 +2,7 @@
 # of pouct_preferred planner. This is meant to
 # only be a fix temporarily. Next time you
 # should remember to add that baseline.
-from runner import *
+from dynamic_mos.experiments.runner import *
 import copy
 import sciex
 import sys
@@ -22,7 +22,9 @@ def trial_func(global_name, seed, config):
     sensor = config["problem_args"]["sensors"][robot_char]
     trial_name = "%s_%s" % (global_name, str(seed))
     kwargs = {**config_cpy["solver_args"], **config_cpy["problem_args"]}
-    return make_trial(trial_name, world, sensor, **kwargs)
+    trial = make_trial(trial_name, world, sensor, **kwargs)
+    trial.verbose = True
+    return trial
 
 def main():
     if len(sys.argv) != 3:
@@ -30,7 +32,7 @@ def main():
         return
     
     sciex.add_baseline("pouct-preferred",
-                       sys.argv[1],
+                       os.path.abspath(sys.argv[1]),
                        trial_func,
                        save_trials=True,
                        split=int(sys.argv[2]))

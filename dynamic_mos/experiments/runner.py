@@ -134,7 +134,7 @@ class DynamicMosTrial(Trial):
             raise ValueError("Unsupported object belief type %s" % str(type(random_object_belief)))
 
         # Visualization initialize
-        if visualize:
+        if True:
             viz = MosViz(problem.env, controllable=False)  # controllable=False means no keyboard control.
             if viz.on_init() == False:
                 raise Exception("Environment failed to initialize")
@@ -212,7 +212,7 @@ class DynamicMosTrial(Trial):
                 print(_step_info)
 
             # Visualize
-            if visualize:
+            if True:
                 # This is used to show the sensing range; Not sampled
                 # according to observation model.
                 robot_pose = problem.env.state.object_states[robot_id].pose
@@ -275,7 +275,8 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                     "grid_map_str": grid_map_str}
     if planner_type.endswith("preferred"):
         problem_args.update({"val_init": kwargs.get("val_init", "big"),
-                             "num_visits_init": kwargs.get("num_visits_init", 10)})
+                             "num_visits_init": kwargs.get("num_visits_init", 10),
+                             "use_preferred_policy": True})
     solver_args = {"planner_type": planner_type,
                    "max_depth": kwargs.get("max_depth", 10),
                    "discount_factor": kwargs.get("discount_factor", 0.99),

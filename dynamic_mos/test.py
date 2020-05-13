@@ -1,4 +1,5 @@
-from dynamic_mos.problem import *
+from dynamic_mos.dynamic_worlds import *
+from dynamic_mos.experiments.runner import create_two_room_world, unittest
 import numpy as np
 import random
 import pickle
@@ -39,6 +40,6 @@ def test_single(case, ntrials=1, planner_type="pouct", sensor_range=4):
     
 
 if __name__ == "__main__":
-    test_single((6,6,6,2), ntrials=1, planner_type="pouct")
+    test_single((8,8,8,1), ntrials=1, planner_type="pouct_preferred")
     # test()
     

@@ -333,4 +333,4 @@ def unittest(world=None, planner_type="pouct", sensor_range=4):
     return _total_reward
 
 if __name__ == "__main__":
-    unittest()
+    unittest(dynamic_world_6, planner_type="pouct_preferred")

@@ -14,17 +14,18 @@ output_dir = os.path.join(ABS_PATH, "results")
 def main():
     num_trials = 25
     seeds = [random.randint(1, 1000000) for i in range(500)]
-    scenarios = [
-        # ((2, 2, 2, 1), 150, 500),
-        # ((3, 3, 3, 1), 150, 500),
-        # ((4, 4, 4, 1), 150, 500),
-        # ((5, 5, 5, 1), 150, 500),
-        # ((6, 6, 6, 1), 150, 500)]
-        ((6, 6, 6, 1), 150, 500),
-        ((7, 7, 7, 1), 150, 500),
-        ((8, 8, 8, 1), 150, 500),
-        ((9, 9, 9, 1), 150, 500)        
-    ]
+
+    max_steps = 150
+    max_time = 500
+    world_case = (8, 8, 8, 1)
+    sensor = make_laser_sensor(90, (1, 4), 0.5, False)
+    
+    scenarios = [(0.4, 0.01),
+                 (0.4, 0.1),
+                 (0.4, 0.3),
+                 (0.4, 0.5),
+                 (0.4, 0.7),
+                 (0.4, 0.9)]
     random.shuffle(scenarios)
     # Split the seeds into |scenarios| groups
     splitted_seeds = []
@@ -34,7 +35,7 @@ def main():
         splitted_seeds.append(seeds[i*num_trials:(i+1)*num_trials])
     all_trials = []
     for i in range(len(scenarios)):
-        world_case, max_steps, max_time = scenarios[i]
+        pr_stay1, pr_stay2 = scenarios[i]
         for seed in splitted_seeds[i]:
             random.seed(seed)
             mapstr, free_locations = create_two_room_world(*world_case)
@@ -46,8 +47,8 @@ def main():
                                     "D": objD_pose,
                                     "E": objE_pose}),
                      "r",
-                     {"D": ("random", 0.4),
-                      "E": ("random", 0.4)})
+                     {"D": ("random", pr_stay1),
+                      "E": ("random", pr_stay2)})
             trial_name = "domain%s_%s" % (str(scenarios[i]).replace(", ", "-"), str(seed))
 
             # Everything else use default
@@ -62,24 +63,27 @@ def main():
                 "visualize": VIZ,
                 "planning_time": 0.7,
                 "discount_factor": 0.99,
-                "prior": "uniform"
+                "prior": "uniform",
+                "max_depth": 20
             }
             
             # sensors
-            sensors = [make_laser_sensor(90, (1, d), 0.5, False)
-                       for d in {3, 4, 5, 6}]
-            for sensor in sensors:
-                random_trial = make_trial(trial_name, world, sensor, "random", **params)
-                greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
-                pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)
-                pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct_preferred", **params)
-                all_trials.append(pouct_trial)
-                all_trials.append(pouct_preferred_trial)
-                all_trials.append(greedy_trial)
-                all_trials.append(random_trial)                
+            random_trial = make_trial(trial_name, world, sensor, "random", **params)
+            greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
+            pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)
+            pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#preferred", **params)
+            all_trials.append(pouct_trial)
+            all_trials.append(pouct_preferred_trial)
+            all_trials.append(greedy_trial)
+            all_trials.append(random_trial)
+
+            params["max_depth"] = 10
+            pouct_preferred_d10_trial =\
+                make_trial(trial_name, world, sensor, "pouct#d10#preferred", **params)
+            all_trials.append(pouct_preferred_d10_trial)            
 
     # Generate scripts to run experiments and gather results
-    exp = Experiment("ScalabilityBB", all_trials, output_dir, verbose=True)
+    exp = Experiment("DynamicsAA", all_trials, output_dir, verbose=True)
     exp.generate_trial_scripts(split=9)
     print("Find multiple computers to run these experiments.")
 

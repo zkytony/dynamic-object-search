@@ -83,7 +83,7 @@ def main():
             all_trials.append(pouct_preferred_d10_trial)            
 
     # Generate scripts to run experiments and gather results
-    exp = Experiment("DynamicsAA", all_trials, output_dir, verbose=True)
+    exp = Experiment("DynamicsBB", all_trials, output_dir, verbose=True)
     exp.generate_trial_scripts(split=9)
     print("Find multiple computers to run these experiments.")
 

@@ -32,7 +32,7 @@ def test_single(case, ntrials=1, planner_type="pouct", sensor_range=4):
                                 "E": objE_pose}),
                  "r",
                  {"D": ("random", 0.4),
-                  "E": ("random", 0.4)})
+                  "E": ("random", 0.1)})
         _total_reward = unittest(world, planner_type=planner_type,
                                  sensor_range=sensor_range)
         results.append(_total_reward)
@@ -40,6 +40,7 @@ def test_single(case, ntrials=1, planner_type="pouct", sensor_range=4):
     
 
 if __name__ == "__main__":
-    test_single((8,8,8,1), ntrials=1, planner_type="pouct_preferred")
+    random.seed(90703)
+    test_single((8,8,8,1), ntrials=1, planner_type="pouct-preferred")
     # test()
     

@@ -294,7 +294,8 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
 
 
 # Test
-def unittest(world=None, planner_type="pouct", sensor_range=4):
+def unittest(world=None, planner_type="pouct", sensor_range=4, max_depth=20,
+             planning_time=0.7, discount_factor=0.99, look_after_move=False):
     # random world
     save_path = None
     if len(sys.argv) > 1:
@@ -319,16 +320,17 @@ def unittest(world=None, planner_type="pouct", sensor_range=4):
                                 small=1,
                                 use_preferred_policy=planner_type.endswith("preferred"),
                                 val_init="big",
-                                num_visits_init=10)
+                                num_visits_init=10,
+                                look_after_move=look_after_move)
     _total_reward = DynamicMosTrial.solve(problem,
                                           planner_type=planner_type,
-                                          max_depth=20,
-                                          discount_factor=0.95,
-                                          planning_time=0.9,
+                                          max_depth=max_depth,
+                                          discount_factor=discount_factor,
+                                          planning_time=planning_time,
                                           exploration_const=200,
                                           visualize=True,
-                                          max_time=120,
-                                          max_steps=500,
+                                          max_time=500,
+                                          max_steps=150,
                                           save_path=save_path)
     return _total_reward
 

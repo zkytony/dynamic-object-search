@@ -50,40 +50,48 @@ class RewardsResult(YamlResult):
             
         # Create a plot
         if os.path.basename(path).lower().startswith("scalability"):
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="all-d3",
                                      planners={"random", "greedy", "pouct", "pouct#preferred"},
                                      sensor_ranges={3})
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="rp-d3",
                                      planners={"random", "pouct"},
                                      sensor_ranges={3})
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="rpg-d3",
                                      planners={"random", "pouct", "greedy"},
                                      sensor_ranges={3})
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="f-d3456",
                                      planners={"pouct#preferred"},
                                      sensor_ranges={3,4,5,6})
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="p-d3456",
                                      planners={"pouct"},
                                      sensor_ranges={3,4,5,6})
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="g-d3456",
                                      planners={"greedy"},
                                      sensor_ranges={3,4,5,6})
-            plot_scalability_rewards(gathered_results,
+            plot_scalability(gathered_results,
                                      suffix="rpgf-d6",
                                      planners={"random", "greedy", "pouct", "pouct#preferred"},
-                                     sensor_ranges={6})                                    
+                                     sensor_ranges={6})
+
+        # Create a plot
+        elif os.path.basename(path).lower().startswith("dynamics"):
+            plot_dynamics(gathered_results,
+                                  suffix="all-d4",
+                                  planners={"random", "greedy", "pouct", "pouct#preferred"},
+                                  sensor_ranges={4})
 
         return True
 
 
-def plot_scalability_rewards(gathered_results,
-                             suffix="plot", planners=None, sensor_ranges=None):
+def plot_scalability(gathered_results,
+                     suffix="plot", plot_type="rewards",
+                     planners=None, sensor_ranges=None):
     # We plot reward vs the domain scale. Domain scale is represented
     # by a single integer n to indicate (n,n,n,1)
     colors = {"random": "red",
@@ -133,11 +141,80 @@ def plot_scalability_rewards(gathered_results,
         
     plt.legend(loc="lower left")
     ax.set_title("Performance as Problem Scales")
-    ax.set_ylabel("Cumulative Reward")
     ax.set_xlabel("Domain Scale")
     ax.xaxis.set_ticks(xvals)
-    fig.savefig("rewards-%s.png" % suffix)
-            
+    if plot_type == "rewards":
+        ax.set_ylabel("Cumulative Reward")
+        fig.savefig("rewards-%s.png" % suffix)
+    elif plot_type == "detections":
+        ax.set_ylabel("Number of Detected Objects")
+        fig.savefig("detections-%s.png" % suffix)
+
+
+
+def plot_dynamics(gathered_results, plot_type="rewards",
+                  suffix="plot", planners=None, sensor_ranges=None):
+    # We plot reward vs the domain scale. Domain scale is represented
+    # by a single integer n to indicate (n,n,n,1)
+    colors = {"random": "red",
+              "greedy": "green",
+              "pouct": "blue",
+              "pouct#preferred": "purple"}
+    fmts = {"d3": "-",
+            "d4": "--",
+            "d5": "-.",
+            "d6": ":"}
+    fig = plt.figure()
+    ax = plt.gca()
+    xvals = []
+    means = {}
+    errs = {}
+    for global_name in gathered_results:
+        scenario = global_name.split("domain(")[1].split("_")[0][:-1]
+        world_case = scenario.split(")-")[0][1:]
+        dynamics = round(1.0-float(world_case.split("-")[1]), 2)
+        xvals.append(dynamics)
+
+        results = gathered_results[global_name]
+        for specific_name in results:
+            planner_type = specific_name.split("-")[0]
+            sensor_str = specific_name.split("-")[2]
+            max_range = int(sensor_str.split(":")[3].split("=")[-1])
+            method_name = "%s-d%s" % (planner_type, max_range)
+            if planners is not None and planner_type not in planners:
+                continue
+            if sensor_ranges is not None and max_range not in sensor_ranges:
+                continue
+            if method_name not in means:
+                means[method_name] = {}
+                errs[method_name] = {}
+            means[method_name][dynamics] = results[specific_name]["mean"]
+            errs[method_name][dynamics] = results[specific_name]["conf-95"]
+    xvals = list(sorted(xvals))
+
+    for method_name in sorted(means):
+        planner_type = method_name.split("-")[0]
+        range_str = method_name.split("-")[1]
+        y_meth = [means[method_name][s] for s in xvals]
+        yerr_meth = [errs[method_name][s] for s in xvals]
+        plt.errorbar(xvals, y_meth, yerr=yerr_meth, label=method_name,
+                     color=colors[planner_type],
+                     fmt=fmts[range_str])
+        
+    plt.legend(bbox_to_anchor=(0., 0.02, 1., .102), loc='lower left',
+               ncol=2, mode="expand", borderaxespad=0.)        
+    ax.set_title("Performance as Dynamic Increases (World Scale: 8)")
+    ax.set_xlabel("Domain Scale")
+    ax.xaxis.set_ticks(xvals)
+    if plot_type == "rewards":
+        ax.set_ylabel("Cumulative Reward")
+        ax.set_ylim(bottom=-300)
+        fig.savefig("rewards-%s.png" % suffix)
+    elif plot_type == "detections":
+        ax.set_ylabel("Number of Detected Objects")
+        ax.set_ylim(bottom=-0.2)
+        fig.savefig("detections-%s.png" % suffix)
+    
 
 class StatesResult(PklResult):
     def __init__(self, states):
@@ -180,7 +257,54 @@ class StatesResult(PklResult):
             return "%.2f %s %.2f" % (entry["mean"], pm, entry["std"])
         
         with open(os.path.join(path, "detections.json"), "w") as f:
-            json.dump(gathered_results, f, indent=4, sort_keys=True)            
+            json.dump(gathered_results, f, indent=4, sort_keys=True)
+
+        # Create a plot
+        if os.path.basename(path).lower().startswith("scalability"):
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="all-d3",
+                             planners={"random", "greedy", "pouct", "pouct#preferred"},
+                             sensor_ranges={3})
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="rp-d3",
+                             planners={"random", "pouct"},
+                             sensor_ranges={3})
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="rpg-d3",
+                             planners={"random", "pouct", "greedy"},
+                             sensor_ranges={3})
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="f-d3456",
+                             planners={"pouct#preferred"},
+                             sensor_ranges={3,4,5,6})
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="p-d3456",
+                             planners={"pouct"},
+                             sensor_ranges={3,4,5,6})
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="g-d3456",
+                             planners={"greedy"},
+                             sensor_ranges={3,4,5,6})
+            plot_scalability(gathered_results,
+                             plot_type="detections",
+                             suffix="rpgf-d6",
+                             planners={"random", "greedy", "pouct", "pouct#preferred"},
+                             sensor_ranges={6})
+
+        # Create a plot
+        elif os.path.basename(path).lower().startswith("dynamics"):
+            plot_dynamics(gathered_results,
+                          plot_type="detections",
+                          suffix="all-d4",
+                          planners={"random", "greedy", "pouct", "pouct#preferred"},
+                          sensor_ranges={4})
+            
 
         return True
 

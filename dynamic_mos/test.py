@@ -46,6 +46,6 @@ def test_single(case, ntrials=1, planner_type="pouct",
 
 if __name__ == "__main__":
     random.seed(90703)
-    test_single((6,6,6,1), ntrials=1, planner_type="greedy",
-                planning_time=0.7, discount_factor=0.99)
+    test_single((8,8,8,1), ntrials=1, planner_type="pouct_preferred",
+                planning_time=0.9, discount_factor=0.95)
     # test()

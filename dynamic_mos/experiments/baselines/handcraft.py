@@ -79,7 +79,7 @@ class GreedyPlanner(ManualPlanner):
                         self._grid_map.valid_motions(
                             agent.robot_id,
                             robot_pose,
-                            agent.policy_model.all_motion_actions())
+                            agent.policy_model.all_motion_actions)
                     if self._look_after_move:
                         action = random.sample(valid_motions, 1)[0]
                     else:

@@ -14,13 +14,13 @@ class PolicyModel(pomdp_py.RolloutPolicy):
     """Simple policy model. All actions are possible at any state."""
 
     def __init__(self, robot_id, grid_map=None,
-                 look_after_move=False, look_cost=0):
+                 look_after_move=False):
         """FindAction can only be taken after LookAction"""
         self.robot_id = robot_id
         self.grid_map = grid_map
         
         if look_after_move:
-            distance_cost = STEP_SIZE + look_cost
+            distance_cost = STEP_SIZE + Look.cost
         else:
             distance_cost = STEP_SIZE
 
@@ -62,7 +62,10 @@ class PolicyModel(pomdp_py.RolloutPolicy):
                     self.grid_map.valid_motions(self.robot_id,
                                                  state.pose(self.robot_id),
                                                  self.all_motion_actions())
-                return valid_motions | find_action
+                if self._look_after_move:
+                    return valid_motions | find_action
+                else:
+                    return valid_motions |{Look} | find_action
             else:
                 return self._all_actions
 

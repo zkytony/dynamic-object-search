@@ -35,7 +35,6 @@ class Action(pomdp_py.Action):
         return "Action(%s)" % self.name
 
 MOTION_SCHEME="xy"  # can be either xy or vw
-LOOK_AFTER_MOVE=False
 STEP_SIZE=1
 class MotionAction(Action):
     # scheme 1 (vx,vy,th)

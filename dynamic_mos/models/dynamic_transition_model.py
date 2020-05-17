@@ -42,7 +42,8 @@ class DynamicMosTransitionModel(pomdp_py.OOTransitionModel):
                  dim, sensors,
                  static_object_ids,
                  motion_policies,
-                 epsilon=1e-9):
+                 epsilon=1e-9,
+                 look_after_move=False):
         """
         sensors (dict): robot_id -> Sensor
         static_object_ids (set): Set of static object ids
@@ -63,7 +64,8 @@ class DynamicMosTransitionModel(pomdp_py.OOTransitionModel):
         for robot_id in sensors:
             transition_models[robot_id] = RobotTransitionModel(sensors[robot_id],
                                                                dim,
-                                                               epsilon=epsilon)
+                                                               epsilon=epsilon,
+                                                               look_after_move=look_after_move)
         super().__init__(transition_models)
 
     def sample(self, state, action, **kwargs):

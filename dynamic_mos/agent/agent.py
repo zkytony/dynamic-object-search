@@ -28,7 +28,8 @@ class MosAgent(pomdp_py.Agent):
                  motion_policies={},  # map from dynamic object id to MotionPolicy
                  big=100,
                  small=1,
-                 action_prior=None):
+                 action_prior=None,
+                 look_after_move=False):
         self.robot_id = robot_id
         self._object_ids = object_ids
         self.sensor = sensor
@@ -44,22 +45,27 @@ class MosAgent(pomdp_py.Agent):
             transition_model = DynamicMosTransitionModel(self._dim,
                                                          {self.robot_id: self.sensor},
                                                          static_object_ids,
-                                                         motion_policies)
+                                                         motion_policies,
+                                                         look_after_move=look_after_move)
         else:
             transition_model = MosTransitionModel(self._dim,
                                                   {self.robot_id: self.sensor},
-                                                  self._object_ids)
+                                                  self._object_ids,
+                                                  look_after_move=look_after_move)
         observation_model = MosObservationModel(self._dim,
                                                 self.sensor,
                                                 self._object_ids,
                                                 sigma=sigma,
-                                                epsilon=epsilon)
+                                                epsilon=epsilon,
+                                                look_after_move=look_after_move)
         reward_model = GoalRewardModel(self._object_ids, robot_id=self.robot_id,
                                        big=big, small=small)
         if action_prior is None:
-            policy_model = PolicyModel(self.robot_id, grid_map=grid_map)
+            policy_model = PolicyModel(self.robot_id, grid_map=grid_map,
+                                       look_after_move=look_after_move)
         else:
-            policy_model = PreferredPolicyModel(action_prior)
+            policy_model = PreferredPolicyModel(action_prior,
+                                                look_after_move=look_after_move)
 
         super().__init__(None, policy_model,
                          transition_model=transition_model,

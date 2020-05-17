@@ -37,9 +37,11 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                  big=100, small=1,
                  agent_has_map=False,
                  motion_policies_dict={},
+                 look_after_move=False,
                  use_preferred_policy=False,
                  num_visits_init=10,
                  val_init="big"):
+                 
         """
         Args:
             robot_char (int or str): the id of the agent that will solve this MosOOPOMDP.
@@ -99,7 +101,8 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
             env = MosEnvironment(dim,
                                  init_state, sensors,
                                  grid_map=grid_map,
-                                 motion_policies=motion_policies)
+                                 motion_policies=motion_policies,
+                                 look_after_move=look_after_move)
 
         # construct prior
         if type(prior) == str:
@@ -136,6 +139,8 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                          motion_policies=env.dynamic_object_motion_policies,
                          small=small,
                          big=big,
-                         action_prior=action_prior)
+                         action_prior=action_prior,
+                         look_after_move=look_after_move)
+        self.look_after_move = look_after_move
         super().__init__(agent, env,
                          name="MOS(%d,%d,%d)" % (env.width, env.length, len(env.target_objects)))

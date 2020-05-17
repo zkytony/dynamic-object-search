@@ -35,6 +35,7 @@ class Action(pomdp_py.Action):
         return "Action(%s)" % self.name
 
 MOTION_SCHEME="xy"  # can be either xy or vw
+LOOK_AFTER_MOVE=False
 STEP_SIZE=1
 class MotionAction(Action):
     # scheme 1 (vx,vy,th)
@@ -74,20 +75,11 @@ class MotionAction(Action):
         if motion_name is None:
             motion_name = str(motion)
         super().__init__("move-%s-%s" % (scheme, motion_name))
-        
-# Define some constant actions
-MoveEast = MotionAction(MotionAction.EAST, scheme="xy", motion_name="East")
-MoveWest = MotionAction(MotionAction.WEST, scheme="xy", motion_name="West")
-MoveNorth = MotionAction(MotionAction.NORTH, scheme="xy", motion_name="North")
-MoveSouth = MotionAction(MotionAction.SOUTH, scheme="xy", motion_name="South")
-MoveForward = MotionAction(MotionAction.FORWARD, scheme="vw", motion_name="Forward")
-MoveBackward = MotionAction(MotionAction.BACKWARD, scheme="vw", motion_name="Backward")
-MoveLeft = MotionAction(MotionAction.LEFT, scheme="vw", motion_name="TurnLeft")
-MoveRight = MotionAction(MotionAction.RIGHT, scheme="vw", motion_name="TurnRight")
 
 class LookAction(Action):
     # For simplicity, this LookAction is not parameterized by direction
-    def __init__(self):
+    def __init__(self, cost=0):
+        self.cost = cost
         super().__init__("look")
         
 class FindAction(Action):
@@ -97,9 +89,26 @@ class FindAction(Action):
 Look = LookAction()
 Find = FindAction()
 
-if MOTION_SCHEME == "xy":
-    ALL_MOTION_ACTIONS = {MoveEast, MoveWest, MoveNorth, MoveSouth}
-elif MOTION_SCHEME == "vw":
-    ALL_MOTION_ACTIONS = {MoveForward, MoveBackward, MoveLeft, MoveRight}
-else:
-    raise ValueError("motion scheme '%s' is invalid" % MOTION_SCHEME)
+def create_motion_actions(scheme="xy", distance_cost=STEP_SIZE):
+    if scheme == "xy":
+        MoveEast = MotionAction(MotionAction.EAST, scheme="xy",
+                                motion_name="East", distance_cost=distance_cost)
+        MoveWest = MotionAction(MotionAction.WEST, scheme="xy",
+                                motion_name="West", distance_cost=distance_cost)
+        MoveNorth = MotionAction(MotionAction.NORTH, scheme="xy",
+                                 motion_name="North", distance_cost=distance_cost)
+        MoveSouth = MotionAction(MotionAction.SOUTH, scheme="xy",
+                                 motion_name="South", distance_cost=distance_cost)
+        return {MoveEast, MoveWest, MoveNorth, MoveSouth}
+    elif scheme == "vw":
+        MoveForward = MotionAction(MotionAction.FORWARD, scheme="vw",
+                                   motion_name="Forward", distance_cost=distance_cost)
+        MoveBackward = MotionAction(MotionAction.BACKWARD, scheme="vw",
+                                    motion_name="Backward", distance_cost=distance_cost)
+        MoveLeft = MotionAction(MotionAction.LEFT, scheme="vw",
+                                motion_name="TurnLeft", distance_cost=distance_cost)
+        MoveRight = MotionAction(MotionAction.RIGHT, scheme="vw",
+                                 motion_name="TurnRight", distance_cost=distance_cost)
+        return {MoveForward, MoveBackward, MoveLeft, MoveRight}
+    else:
+        raise ValueError("motion scheme '%s' is invalid" % MOTION_SCHEME)

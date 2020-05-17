@@ -19,7 +19,9 @@ def test(planner_type="pouct", sensor_range=4):
     with open("results.pkl", "wb") as f:
         pickle.dump(results, f)
 
-def test_single(case, ntrials=1, planner_type="pouct", sensor_range=4):
+def test_single(case, ntrials=1, planner_type="pouct",
+                sensor_range=4, planning_time=0.7,
+                discount_factor=0.99):
     results = []
     for i in range(ntrials):
         mapstr, free_locations = create_two_room_world(*case)
@@ -34,13 +36,16 @@ def test_single(case, ntrials=1, planner_type="pouct", sensor_range=4):
                  {"D": ("random", 0.4),
                   "E": ("random", 0.1)})
         _total_reward = unittest(world, planner_type=planner_type,
-                                 sensor_range=sensor_range)
+                                 sensor_range=sensor_range,
+                                 planning_time=planning_time,
+                                 discount_factor=discount_factor,
+                                 look_after_move=False)
         results.append(_total_reward)
     return results
     
 
 if __name__ == "__main__":
     random.seed(90703)
-    test_single((8,8,8,1), ntrials=1, planner_type="pouct-preferred")
+    test_single((8,8,8,1), ntrials=1, planner_type="pouct",
+                planning_time=0.7, discount_factor=0.99)
     # test()
-    

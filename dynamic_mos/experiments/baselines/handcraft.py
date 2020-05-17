@@ -5,8 +5,9 @@ import random
 from collections import deque
 
 class ManualPlanner(pomdp_py.Planner):
-    def __init__(self, grid_map):
+    def __init__(self, grid_map, look_after_move=False):
         self._grid_map = grid_map
+        self._look_after_move = look_after_move
         self._find_next = False
         
     def update(self, agent, real_action, real_observation, **kwargs):
@@ -22,6 +23,7 @@ class ManualPlanner(pomdp_py.Planner):
         
 
 class RandomPlanner(ManualPlanner):
+    
     # Randomly takes a valid action that is not Find.
     # Takes find when object appears in the field of view
     # in the previous look.
@@ -36,17 +38,19 @@ class RandomPlanner(ManualPlanner):
                     agent.robot_id,
                     robot_pose,
                     agent.policy_model.all_motion_actions())
-            action = random.sample(valid_motions | set({LookAction()}), 1)[0]
+            if self._look_after_move:
+                action = random.sample(valid_motions, 1)[0]
+            else:
+                action = random.sample(valid_motions | set({LookAction()}), 1)[0]
             return action
 
         
 class GreedyPlanner(ManualPlanner):
     # Greedily moves to the location of highest belief,
     # and look around. Take "Find" after seeing an object.
-    def __init__(self, grid_map):
-        self._grid_map = grid_map
+    def __init__(self, grid_map, look_after_move=False):
+        super().__init__(grid_map, look_after_move=look_after_move)
         self._actions = deque([])
-        self._find_next = False
 
     def plan(self, agent):
         if self._find_next:
@@ -76,11 +80,15 @@ class GreedyPlanner(ManualPlanner):
                             agent.robot_id,
                             robot_pose,
                             agent.policy_model.all_motion_actions())
-                    action = random.sample(valid_motions | set({LookAction()}), 1)[0]
+                    if self._look_after_move:
+                        action = random.sample(valid_motions, 1)[0]
+                    else:
+                        action = random.sample(valid_motions | set({LookAction()}), 1)[0]                    
                     self._actions.append(action)
                 else:
                     # Append a look action at the end
-                    self._actions.append(LookAction())
+                    if not self._look_after_move:
+                        self._actions.append(LookAction())
 
             # Return action
             return self._actions.popleft()

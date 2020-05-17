@@ -22,7 +22,7 @@ class MosTransitionModel(pomdp_py.OOTransitionModel):
     not necessarily by each robot for planning.
     """
     def __init__(self,
-                 dim, sensors, object_ids,
+                 dim, sensors, object_ids, look_after_move=False,
                  epsilon=1e-9):
         """
         sensors (dict): robot_id -> Sensor
@@ -36,7 +36,8 @@ class MosTransitionModel(pomdp_py.OOTransitionModel):
         for robot_id in sensors:
             transition_models[robot_id] = RobotTransitionModel(sensors[robot_id],
                                                                dim,
-                                                               epsilon=epsilon)
+                                                               epsilon=epsilon,
+                                                               look_after_move=look_after_move)
         super().__init__(transition_models)
 
     def sample(self, state, action, **kwargs):
@@ -70,7 +71,7 @@ class StaticObjectTransitionModel(pomdp_py.TransitionModel):
     
 class RobotTransitionModel(pomdp_py.TransitionModel):
     """We assume that the robot control is perfect and transitions are deterministic."""
-    def __init__(self, sensor, dim, epsilon=1e-9):
+    def __init__(self, sensor, dim, epsilon=1e-9, look_after_move=False):
         """
         dim (tuple): a tuple (width, length) for the dimension of the world
         """
@@ -79,6 +80,7 @@ class RobotTransitionModel(pomdp_py.TransitionModel):
         self._robot_id = sensor.robot_id
         self._dim = dim
         self._epsilon = epsilon
+        self._look_after_move = look_after_move
 
     @classmethod
     def if_move_by(cls, robot_id, state, action, dim,
@@ -137,6 +139,10 @@ class RobotTransitionModel(pomdp_py.TransitionModel):
             next_robot_state['pose'] = \
                 RobotTransitionModel.if_move_by(self._robot_id,
                                                 state, action, self._dim)
+            if self._look_after_move:
+                # acts as a look action as well
+                next_robot_state['camera_direction'] = action.name
+            
         elif isinstance(action, LookAction):
             if hasattr(action, "motion") and action.motion is not None:
                 # rotate the robot

@@ -33,26 +33,30 @@ class MosObservationModel(pomdp_py.OOObservationModel):
                  sensor,
                  object_ids,
                  sigma=0.01,
-                 epsilon=1):
+                 epsilon=1,
+                 look_after_move=False):
         self.sigma = sigma
         self.epsilon = epsilon
+        self._look_after_move = look_after_move
         observation_models = {objid: ObjectObservationModel(objid, sensor, dim,
-                                                            sigma=sigma, epsilon=epsilon)
+                                                            sigma=sigma, epsilon=epsilon,
+                                                            look_after_move=look_after_move)
                               for objid in object_ids}
         pomdp_py.OOObservationModel.__init__(self, observation_models)
 
+    def _is_sensing(self, action):
+        return isinstance(action, LookAction)\
+            or (self._look_after_move and isinstance(action, MotionAction))
+
     def sample(self, next_state, action, argmax=False, **kwargs):
-        if not isinstance(action, LookAction):
+        if not self._is_sensing(action):
             return MosOOObservation({})
-            # return MosOOObservation({objid: ObjectObservationModel.NULL
-            #                          for objid in next_state.object_states
-            #                          if objid != next_state.object_states[objid].objclass != "robot"})
             
         factored_observations = super().sample(next_state, action, argmax=argmax)
         return MosOOObservation.merge(factored_observations, next_state)
 
 class ObjectObservationModel(pomdp_py.ObservationModel):
-    def __init__(self, objid, sensor, dim, sigma=0, epsilon=1):
+    def __init__(self, objid, sensor, dim, sigma=0, epsilon=1, look_after_move=False):
         """
         sigma and epsilon are parameters of the observation model (see paper),
         dim (tuple): a tuple (width, length) for the dimension of the world"""
@@ -60,6 +64,7 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
         self._sensor = sensor
         self.sigma = sigma
         self.epsilon = epsilon
+        self._look_after_move = look_after_move
 
     def _compute_params(self, object_in_sensing_region):
         if object_in_sensing_region:
@@ -73,6 +78,10 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
             beta = (1.0 - self.epsilon) / 2.0
             gamma = self.epsilon
         return alpha, beta, gamma
+
+    def _is_sensing(self, action):
+        return isinstance(action, LookAction)\
+            or (self._look_after_move and isinstance(action, MotionAction))
         
     def probability(self, observation, next_state, action, **kwargs):
         """
@@ -83,13 +92,13 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
             next_state (State)
             action (Action)
         """
-        if not isinstance(action, LookAction):
+        if not self._is_sensing(action):
             # No observation should be received
             if observation.pose == ObjectObservation.NULL:
                 return 1.0
             else:
                 return 0.0
-        
+
         if observation.objid != self._objid:
             raise ValueError("The observation is not about the same object")
 
@@ -136,7 +145,7 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
 
     def sample(self, next_state, action, **kwargs):
         """Returns observation"""
-        if not isinstance(action, LookAction):
+        if not self._is_sensing(action):
             # Not a look action. So no observation
             return ObjectObservation(self._objid, ObjectObservation.NULL)
 
@@ -153,6 +162,9 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
         return ObjectObservation(self._objid, zi)
 
     def argmax(self, next_state, action, **kwargs):
+        if not self._is_sensing(action):
+            return ObjectObservation(self._objid, ObjectObservation.NULL)
+        
         # Obtain observation according to distribution.
         alpha, beta, gamma = self._compute_params(self._sensor.within_range(robot_pose, object_pose))        
 

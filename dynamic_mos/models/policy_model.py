@@ -13,10 +13,25 @@ from ..utils import *
 class PolicyModel(pomdp_py.RolloutPolicy):
     """Simple policy model. All actions are possible at any state."""
 
-    def __init__(self, robot_id, grid_map=None):
+    def __init__(self, robot_id, grid_map=None,
+                 look_after_move=False, look_cost=0):
         """FindAction can only be taken after LookAction"""
         self.robot_id = robot_id
         self.grid_map = grid_map
+        
+        if look_after_move:
+            distance_cost = STEP_SIZE + look_cost
+        else:
+            distance_cost = STEP_SIZE
+
+        self._look_after_move = look_after_move
+        motion_actions = create_motion_actions(scheme="xy",
+                                               distance_cost=distance_cost)
+        if look_after_move:
+            self._all_actions = motion_actions | {Find}
+        else:
+            self._all_actions = motion_actions | {Look, Find}
+        self._all_motion_actions = self._all_actions - {Look, Find}
 
     def sample(self, state, **kwargs):
         return random.sample(self._get_all_actions(**kwargs), 1)[0]
@@ -30,38 +45,43 @@ class PolicyModel(pomdp_py.RolloutPolicy):
 
     def get_all_actions(self, state=None, history=None):
         """note: find can only happen after look."""
-        can_find = False
-        if history is not None and len(history) > 1:
-            # last action
-            last_action = history[-1][0]
-            if isinstance(last_action, LookAction):
-                can_find = True
+        can_find = True
+        if not self._look_after_move:
+            can_find = False
+            if history is not None and len(history) > 1:
+                # last action
+                last_action = history[-1][0]
+                if isinstance(last_action, LookAction):
+                    can_find = True
         find_action = set({Find}) if can_find else set({})
         if state is None:
-            return ALL_MOTION_ACTIONS | {Look} | find_action
+            return self._all_actions
         else:
             if self.grid_map is not None:
                 valid_motions =\
                     self.grid_map.valid_motions(self.robot_id,
                                                  state.pose(self.robot_id),
-                                                 ALL_MOTION_ACTIONS)
-                return valid_motions | {Look} | find_action
+                                                 self.all_motion_actions())
+                return valid_motions | find_action
             else:
-                return ALL_MOTION_ACTIONS | {Look} | find_action
+                return self._all_actions
 
     def rollout(self, state, history):
         return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
 
     def all_motion_actions(self):
-        return ALL_MOTION_ACTIONS
-
+        return self._all_motion_actions
     
+
+# Preferred policy, action prior.    
 class PreferredPolicyModel(PolicyModel):
     """The same with PolicyModel except there is a preferred rollout policypomdp_py.RolloutPolicy"""
-    def __init__(self, action_prior):
+    def __init__(self, action_prior, look_after_move=False):
         self.action_prior = action_prior
         super().__init__(self.action_prior.robot_id,
-                         self.action_prior.grid_map)
+                         self.action_prior.grid_map,
+                         look_after_move=look_after_move)
+        self.action_prior.set_motion_actions(self.all_motion_actions())
         
     def rollout(self, state, history):
         # Obtain preference and returns the action in it.
@@ -69,12 +89,15 @@ class PreferredPolicyModel(PolicyModel):
 
     
 class DynamicMosActionPrior(pomdp_py.ActionPrior):
-
     def __init__(self, robot_id, grid_map, num_visits_init, val_init):
         self.robot_id = robot_id
         self.grid_map = grid_map
+        self._all_motion_actions = None
         self.num_visits_init = num_visits_init
         self.val_init = val_init
+
+    def set_motion_actions(self, motion_actions):
+        self._all_motion_actions = motion_actions
         
     def get_preferred_actions(self, state, history):
         """Get preferred actions. This can be used by a rollout policy as well."""
@@ -82,6 +105,9 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
         # undetected target object in the state. If
         # cannot move any closer, look. If the last
         # observation contains an unobserved object, then Find.
+        if self._all_motion_actions is None:
+            raise ValueError("Unable to get preferred actions because"\
+                             "we don't know what motion actions there are.")
         robot_state = state.object_states[self.robot_id]
 
         if len(history) > 0:
@@ -103,7 +129,7 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
                         robot_state.pose,
                         self.grid_map.valid_motions(self.robot_id,
                                                     robot_state.pose,
-                                                    ALL_MOTION_ACTIONS))
+                                                    self._all_motion_actions))
                 for next_robot_pose in neighbors:
                     if euclidean_dist(next_robot_pose, object_pose) < cur_dist:
                         preferences.add((neighbors[next_robot_pose],

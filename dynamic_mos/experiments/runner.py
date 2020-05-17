@@ -127,9 +127,11 @@ class DynamicMosTrial(Trial):
         elif planner_type == "pomcp_preferred":
             raise ValueError("Not supported for now.")
         elif planner_type == "random":
-            planner = RandomPlanner(problem.env.grid_map)
+            planner = RandomPlanner(problem.env.grid_map,
+                                    look_after_move=problem.look_after_move)
         elif planner_type == "greedy":
-            planner = GreedyPlanner(problem.env.grid_map)
+            planner = GreedyPlanner(problem.env.grid_map,
+                                    look_after_move=problem.look_after_move)
         else:
             raise ValueError("Unsupported object belief type %s" % str(type(random_object_belief)))
 

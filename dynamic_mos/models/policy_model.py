@@ -89,12 +89,13 @@ class PreferredPolicyModel(PolicyModel):
 
     
 class DynamicMosActionPrior(pomdp_py.ActionPrior):
-    def __init__(self, robot_id, grid_map, num_visits_init, val_init):
+    def __init__(self, robot_id, grid_map, num_visits_init, val_init, look_after_move=False):
         self.robot_id = robot_id
         self.grid_map = grid_map
         self._all_motion_actions = None
         self.num_visits_init = num_visits_init
         self.val_init = val_init
+        self._look_after_move = look_after_move
 
     def set_motion_actions(self, motion_actions):
         self._all_motion_actions = motion_actions
@@ -118,8 +119,12 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
                     # We last observed an object that was not found. Then Find.
                     return set({(FindAction(), self.num_visits_init, self.val_init)})
 
-        # Always give preference to Look
-        preferences = set({(LookAction(), self.num_visits_init, self.val_init)})
+        if self._look_after_move:
+            # No Look action; It's embedded in Move.
+            preferences = set()
+        else:
+            # Always give preference to Look
+            preferences = set({(LookAction(), self.num_visits_init, self.val_init)})
         for objid in state.object_states:
             if objid != self.robot_id and objid not in robot_state.objects_found:
                 object_pose = state.pose(objid)
@@ -134,6 +139,9 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
                     if euclidean_dist(next_robot_pose, object_pose) < cur_dist:
                         preferences.add((neighbors[next_robot_pose],
                                          self.num_visits_init, self.val_init))
+        if len(preferences) == 0:
+            preferences = set({(motion_action, 1, 0)
+                               for motion_action in self._all_motion_actions})
         return preferences
                 
             

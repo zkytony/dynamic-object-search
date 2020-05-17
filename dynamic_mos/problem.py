@@ -124,7 +124,8 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
         if use_preferred_policy:
             val_init = big if val_init == "big" else val_init
             action_prior = DynamicMosActionPrior(robot_id, env.grid_map,
-                                                 num_visits_init, val_init)
+                                                 num_visits_init, val_init,
+                                                 look_after_move=look_after_move)
         agent = MosAgent(robot_id,
                          env.state.object_states[robot_id],
                          env.target_objects,

@@ -24,7 +24,7 @@ class PolicyModel(pomdp_py.RolloutPolicy):
             distance_cost = STEP_SIZE + Look.cost
         else:
             distance_cost = STEP_SIZE
-        self._all_motion_actions = create_motion_actions(scheme="xy",
+        self.all_motion_actions = create_motion_actions(scheme="xy",
                                                          distance_cost=distance_cost)
 
     def sample(self, state, **kwargs):
@@ -38,9 +38,9 @@ class PolicyModel(pomdp_py.RolloutPolicy):
         raise NotImplementedError
 
     def _valid_actions(self, motions=None, can_find=False):
-        find_action = set({Find}) if can_find else set({})        
+        find_action = set({Find}) if can_find else set({})
         if motions is None:
-            motions = self._all_motion_actions
+            motions = self.all_motion_actions
         if self._look_after_move:
             return motions | find_action
         else:
@@ -61,7 +61,7 @@ class PolicyModel(pomdp_py.RolloutPolicy):
             valid_motions =\
                 self.grid_map.valid_motions(self.robot_id,
                                             state.pose(self.robot_id),
-                                            self._all_motion_actions)
+                                            self.all_motion_actions)
         return self._valid_actions(motions=valid_motions,
                                    can_find=can_find)
                 
@@ -77,24 +77,28 @@ class PreferredPolicyModel(PolicyModel):
         super().__init__(self.action_prior.robot_id,
                          self.action_prior.grid_map,
                          look_after_move=look_after_move)
-        self.action_prior.set_motion_actions(self._all_motion_actions)
+        self.action_prior.set_motion_actions(self.all_motion_actions)
         
     def rollout(self, state, history):
         # Obtain preference and returns the action in it.
-        return random.sample(self.action_prior.get_preferred_actions(state, history), 1)[0][0]
+        preferences = self.action_prior.get_preferred_actions(state, history)
+        if len(preferences) > 0:
+            return random.sample(preferences, 1)[0][0]
+        else:
+            return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
 
     
 class DynamicMosActionPrior(pomdp_py.ActionPrior):
     def __init__(self, robot_id, grid_map, num_visits_init, val_init, look_after_move=False):
         self.robot_id = robot_id
         self.grid_map = grid_map
-        self._all_motion_actions = None
+        self.all_motion_actions = None
         self.num_visits_init = num_visits_init
         self.val_init = val_init
         self._look_after_move = look_after_move
 
     def set_motion_actions(self, motion_actions):
-        self._all_motion_actions = motion_actions
+        self.all_motion_actions = motion_actions
         
     def get_preferred_actions(self, state, history):
         """Get preferred actions. This can be used by a rollout policy as well."""
@@ -102,7 +106,7 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
         # undetected target object in the state. If
         # cannot move any closer, look. If the last
         # observation contains an unobserved object, then Find.
-        if self._all_motion_actions is None:
+        if self.all_motion_actions is None:
             raise ValueError("Unable to get preferred actions because"\
                              "we don't know what motion actions there are.")
         robot_state = state.object_states[self.robot_id]
@@ -130,14 +134,10 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
                         robot_state.pose,
                         self.grid_map.valid_motions(self.robot_id,
                                                     robot_state.pose,
-                                                    self._all_motion_actions))
+                                                    self.all_motion_actions))
                 for next_robot_pose in neighbors:
                     if euclidean_dist(next_robot_pose, object_pose) < cur_dist:
                         preferences.add((neighbors[next_robot_pose],
-                                         self.num_visits_init, self.val_init))
-        if len(preferences) == 0:
-            preferences = set({(motion_action, 1, 0)
-                               for motion_action in self._all_motion_actions})
+                                             self.num_visits_init, self.val_init))
         return preferences
                 
-            

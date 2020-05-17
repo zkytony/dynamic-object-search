@@ -133,7 +133,6 @@ class RobotTransitionModel(pomdp_py.TransitionModel):
 
         next_robot_state = copy.deepcopy(robot_state)
         # camera direction is only not None when looking        
-        next_robot_state['camera_direction'] = None 
         if isinstance(action, MotionAction):
             # motion action
             next_robot_state['pose'] = \

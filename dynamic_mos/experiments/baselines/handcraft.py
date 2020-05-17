@@ -68,7 +68,7 @@ class GreedyPlanner(ManualPlanner):
                         object_pose = mpe_state.object_poses[objid]
                         motion_actions =\
                             self._grid_map.path_between(robot_pose, object_pose,
-                                                        agent.policy_model.all_motion_actions(),
+                                                        agent.policy_model.all_motion_actions,
                                                         return_actions=True)
                         self._actions.extend(motion_actions)
                         break

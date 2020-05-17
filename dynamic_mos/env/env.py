@@ -33,13 +33,13 @@ class MosEnvironment(pomdp_py.Environment):
             transition_model = DynamicMosTransitionModel(dim,
                                                          sensors,
                                                          static_object_ids,
-                                                         motion_policies)
-                                                         # look_after_move=look_after_move)
+                                                         motion_policies,
+                                                         look_after_move=look_after_move)
         else:
             transition_model = MosTransitionModel(dim,
                                                   sensors,
-                                                  set(init_state.object_states.keys()))
-                                                  # look_after_move=look_after_move)
+                                                  set(init_state.object_states.keys()),
+                                                  look_after_move=look_after_move)
             
         # Target objects, a set of ids, are not robot nor obstacles
         obstacles = set({}) if self.grid_map is None else set(grid_map.obstacles.keys())

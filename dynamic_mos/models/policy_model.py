@@ -18,20 +18,14 @@ class PolicyModel(pomdp_py.RolloutPolicy):
         """FindAction can only be taken after LookAction"""
         self.robot_id = robot_id
         self.grid_map = grid_map
-        
-        if look_after_move:
+
+        self._look_after_move = look_after_move        
+        if self._look_after_move:
             distance_cost = STEP_SIZE + Look.cost
         else:
             distance_cost = STEP_SIZE
-
-        self._look_after_move = look_after_move
-        motion_actions = create_motion_actions(scheme="xy",
-                                               distance_cost=distance_cost)
-        if look_after_move:
-            self._all_actions = motion_actions | {Find}
-        else:
-            self._all_actions = motion_actions | {Look, Find}
-        self._all_motion_actions = self._all_actions - {Look, Find}
+        self._all_motion_actions = create_motion_actions(scheme="xy",
+                                                         distance_cost=distance_cost)
 
     def sample(self, state, **kwargs):
         return random.sample(self._get_all_actions(**kwargs), 1)[0]
@@ -43,6 +37,15 @@ class PolicyModel(pomdp_py.RolloutPolicy):
         """Returns the most likely action"""
         raise NotImplementedError
 
+    def _valid_actions(self, motions=None, can_find=False):
+        find_action = set({Find}) if can_find else set({})        
+        if motions is None:
+            motions = self._all_motion_actions
+        if self._look_after_move:
+            return motions | find_action
+        else:
+            return motions | {Look} | find_action
+
     def get_all_actions(self, state=None, history=None):
         """note: find can only happen after look."""
         can_find = True
@@ -53,27 +56,17 @@ class PolicyModel(pomdp_py.RolloutPolicy):
                 last_action = history[-1][0]
                 if isinstance(last_action, LookAction):
                     can_find = True
-        find_action = set({Find}) if can_find else set({})
-        if state is None:
-            return self._all_actions
-        else:
-            if self.grid_map is not None:
-                valid_motions =\
-                    self.grid_map.valid_motions(self.robot_id,
-                                                 state.pose(self.robot_id),
-                                                 self.all_motion_actions())
-                if self._look_after_move:
-                    return valid_motions | find_action
-                else:
-                    return valid_motions |{Look} | find_action
-            else:
-                return self._all_actions
-
+        valid_motions = None        
+        if state is not None and self.grid_map is not None:
+            valid_motions =\
+                self.grid_map.valid_motions(self.robot_id,
+                                            state.pose(self.robot_id),
+                                            self._all_motion_actions)
+        return self._valid_actions(motions=valid_motions,
+                                   can_find=can_find)
+                
     def rollout(self, state, history):
         return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
-
-    def all_motion_actions(self):
-        return self._all_motion_actions
     
 
 # Preferred policy, action prior.    
@@ -84,7 +77,7 @@ class PreferredPolicyModel(PolicyModel):
         super().__init__(self.action_prior.robot_id,
                          self.action_prior.grid_map,
                          look_after_move=look_after_move)
-        self.action_prior.set_motion_actions(self.all_motion_actions())
+        self.action_prior.set_motion_actions(self._all_motion_actions)
         
     def rollout(self, state, history):
         # Obtain preference and returns the action in it.

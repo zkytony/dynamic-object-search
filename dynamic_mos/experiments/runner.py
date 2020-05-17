@@ -274,7 +274,8 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                     "small": kwargs.get("small", 1),
                     "sensors": {robot_char: sensor},
                     "motion_policies_dict": motion_policies_dict,
-                    "grid_map_str": grid_map_str}
+                    "grid_map_str": grid_map_str,
+                    "look_after_move": kwargs.get("look_after_move", False)}
     if planner_type.endswith("preferred"):
         problem_args.update({"val_init": kwargs.get("val_init", "big"),
                              "num_visits_init": kwargs.get("num_visits_init", 10),
@@ -288,8 +289,9 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                    "max_steps": kwargs.get("max_steps", 500),
                    "visualize": kwargs.get("visualize", True)}
     sensor_str = sensor.replace(" ", ":").replace("_", "~")    
-    return DynamicMosTrial("%s_%s-%s-%s" % (trial_name, planner_type,
-                                            problem_args["prior"], sensor_str),
+    return DynamicMosTrial("%s_%s-%s-%s-look%s" % (trial_name, planner_type,
+                                                   problem_args["prior"], sensor_str,
+                                                   str(problem_args["look_after_move"])),
                            config={"problem_args": problem_args,
                                    "solver_args": solver_args,
                                    "world": world})

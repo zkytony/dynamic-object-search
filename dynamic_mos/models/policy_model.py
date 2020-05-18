@@ -90,7 +90,7 @@ class PreferredPolicyModel(PolicyModel):
     
 class DynamicMosActionPrior(pomdp_py.ActionPrior):
     def __init__(self, robot_id, grid_map, num_visits_init, val_init,
-                 look_after_move=False, level=1):
+                 look_after_move=False):
         """level (int) used to set the level of 'manual'ness"""        
         self.robot_id = robot_id
         self.grid_map = grid_map
@@ -142,9 +142,5 @@ class DynamicMosActionPrior(pomdp_py.ActionPrior):
                     if euclidean_dist(next_robot_pose, object_pose) < cur_dist:
                         preferences.add((neighbors[next_robot_pose],
                                              self.num_visits_init, self.val_init))
-        # TODO: If there is no action that moves you closer to any undetected object,
-        # then move closer to a region that you visited the fewest times.
-        if self._level > 1:
-            pass
         return preferences
                 

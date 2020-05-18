@@ -182,7 +182,6 @@ def interpret(worldstr, motion_policies_dict={}):
                 objid = len(objects)
                 objects[objid] = ObjectState(objid, "target", (x,y))
                 if c in motion_policies_dict:
-                    print("WARNING! THIS IS A DYNAMIC OBJECT. CODE ONGOING")
                     if type(motion_policies_dict[c]) == list:
                         motion_policies[objid] = ("iterative", motion_policies_dict[c])
                     elif type(motion_policies_dict[c]) == tuple:
@@ -190,6 +189,7 @@ def interpret(worldstr, motion_policies_dict={}):
                     else:
                         raise ValueError("Invalid specification of motion policy for %s." % c)
                     objects[objid]["time"] = 0
+                print("Object %s is assigned id %d | %s" % (c, objid, str(motion_policies_dict[c])))
                 
             elif c.islower():
                 # robot

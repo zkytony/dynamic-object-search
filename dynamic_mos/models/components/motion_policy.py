@@ -137,10 +137,11 @@ class RandomStayPolicy(StochaisticPolicy):
 
 
 class EpsilonGoalPolicy(StochaisticPolicy):
-    def __init__(self, grid_map, goal_pose, epsilon=0.1):
+    def __init__(self, grid_map, goal_pose, epsilon=0.1, stop_at_goal=False):
         super().__init__(grid_map)
         self._epsilon = epsilon
         self._goal_pose = goal_pose
+        self._stop_at_goal = stop_at_goal
 
         # Compute a greedy policy (based on Dijkstra) to
         # arrive at the goal from any location from the map
@@ -156,6 +157,10 @@ class EpsilonGoalPolicy(StochaisticPolicy):
                     for i in range(1, len(path)):
                         self._policy[path[i-1]] = path[i]
 
+    @property
+    def goal_pose(self):
+        return self._goal_pose
+
     def probability(self, next_object_state, cur_object_state):
         cur_object_pose = cur_object_state.pose
         next_object_pose = next_object_state.pose        
@@ -165,6 +170,12 @@ class EpsilonGoalPolicy(StochaisticPolicy):
                 or (diff_x == 0 and diff_y == STEP_SIZE)
                 or (diff_x == 0 and diff_y == 0)):
             return 1e-9
+        # Once reached goal, won't move.
+        if self._stop_at_goal and cur_object_pose == self._goal_pose:
+            if next_object_pose != cur_object_pose:
+                return 1e-9
+            else:
+                return 1.0 - 1e-9
         
         expected_next_pose = self._policy[cur_object_pose]
         if next_object_pose != expected_next_pose:
@@ -173,15 +184,20 @@ class EpsilonGoalPolicy(StochaisticPolicy):
             return 1.0 - self._epsilon
 
     def random(self, object_state, argmax=False):
-        if random.uniform(0,1) > self._epsilon:
-            # Moves according to policy
-            next_object_pose = self._policy[object_state.pose]
+        if self._stop_at_goal and object_state.pose == self._goal_pose:
+            # Once reached goal, won't move.
+            next_object_pose = object_state.pose
         else:
-            # Moves randomly
-            legal_actions = self._legal_actions[object_state.pose]
-            action = random.choice(legal_actions)            
-            next_object_pose = (object_state.pose[0] + action.motion[0],
-                                object_state.pose[1] + action.motion[1])            
+            # Have not reached goal
+            if random.uniform(0,1) > self._epsilon:
+                # Moves according to policy
+                next_object_pose = self._policy[object_state.pose]
+            else:
+                # Moves randomly
+                legal_actions = self._legal_actions[object_state.pose]
+                action = random.choice(legal_actions)            
+                next_object_pose = (object_state.pose[0] + action.motion[0],
+                                    object_state.pose[1] + action.motion[1])            
         return ObjectState(object_state,
                            object_state.objclass,
                            next_object_pose,

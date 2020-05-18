@@ -70,7 +70,7 @@ class GreedyPlanner(ManualPlanner):
                             self._grid_map.path_between(robot_pose, object_pose,
                                                         agent.policy_model.all_motion_actions,
                                                         return_actions=True)
-                        self._actions.extend(motion_actions)
+                        self._actions.extend(motion_actions[:-1])  # leave room to observe
                         break
                 if len(self._actions) == 0:
                     print("Warning: GreedyPlanner plan does not move the robot."\

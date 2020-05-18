@@ -16,6 +16,8 @@ from .env import *
 from ..domain.observation import *
 from ..domain.action import *
 from ..domain.state import *
+from ..models.components.motion_policy import *
+from ..models.dynamic_transition_model import *
 from ..example_worlds import *
 
 
@@ -55,8 +57,9 @@ class MosViz:
         # Generate some colors, one per target object
         colors = {}
         random.seed(1)
-        for i, objid in enumerate(env.target_objects):
+        for i, objid in enumerate(sorted(env.target_objects)):
             colors[objid] = object_color(objid, i)
+            print("Object %d is assigned color %s" % (objid, colors[objid]))
         random.seed()                    
         self._target_colors = colors
 
@@ -275,16 +278,28 @@ class MosViz:
             self.on_render()
         self.on_cleanup()
 
+    def render_objects(self, img, r):
+        # draw dynamic object
+        for i, objid in enumerate(self._env.dynamic_object_ids):
+            x, y = self._env.state.pose(objid)
+            color = util.lighter(self._target_colors[objid], -0.3)
+            cv2.rectangle(img, (y*r, x*r), (y*r+r, x*r+r), color, -1)
+            
+            # Draw goal, if there is one
+            if isinstance(self._env.transition_model, DynamicMosTransitionModel):
+                motion_policy = self._env.transition_model.motion_policy(objid)
+                if motion_policy is not None:
+                    if isinstance(motion_policy, EpsilonGoalPolicy):
+                        gx, gy = motion_policy.goal_pose
+                        color = util.lighter(self._target_colors[objid], -0.3)
+                        cv2.rectangle(img, (gy*r, gx*r), (gy*r+r, gx*r+r), color, 3)
+
     def render_env(self, display_surf):
         # draw robot, a circle and a vector
         img = np.copy(self._img)
         r = self._res  # Not radius! It's resolution.
-
-        # draw dynamic object
-        for i, objid in enumerate(self._env.dynamic_object_ids):
-            x, y = self._env.state.pose(objid)
-            cv2.rectangle(img, (y*r, x*r), (y*r+r, x*r+r),
-                          (255, 165, 0), -1)
+        
+        self.render_objects(img, r)
         
         for i, robot_id in enumerate(self._env.robot_ids):
             rx, ry, rth = self._env.state.pose(robot_id)

@@ -51,33 +51,49 @@ class RewardsResult(YamlResult):
         # Create a plot
         if os.path.basename(path).lower().startswith("scalability"):
             plot_scalability(gathered_results,
-                                     suffix="all-d3",
-                                     planners={"random", "greedy", "pouct", "pouct#preferred"},
-                                     sensor_ranges={3})
+                             suffix="all-d3",
+                             planners={"random", "greedy", "pouct", "pouct#preferred"},
+                             sensor_ranges={3})
             plot_scalability(gathered_results,
-                                     suffix="rp-d3",
-                                     planners={"random", "pouct"},
-                                     sensor_ranges={3})
+                             suffix="rp-d3",
+                             planners={"random", "pouct"},
+                             sensor_ranges={3})
             plot_scalability(gathered_results,
-                                     suffix="rpg-d3",
-                                     planners={"random", "pouct", "greedy"},
-                                     sensor_ranges={3})
+                             suffix="rpg-d3",
+                             planners={"random", "pouct", "greedy"},
+                             sensor_ranges={3})
             plot_scalability(gathered_results,
-                                     suffix="f-d3456",
-                                     planners={"pouct#preferred"},
-                                     sensor_ranges={3,4,5,6})
+                             suffix="f-d3456",
+                             planners={"pouct#preferred"},
+                             sensor_ranges={3,4,5,6})
             plot_scalability(gathered_results,
-                                     suffix="p-d3456",
-                                     planners={"pouct"},
-                                     sensor_ranges={3,4,5,6})
+                             suffix="p-d3456",
+                             planners={"pouct"},
+                             sensor_ranges={3,4,5,6})
             plot_scalability(gathered_results,
-                                     suffix="g-d3456",
-                                     planners={"greedy"},
-                                     sensor_ranges={3,4,5,6})
+                             suffix="g-d3456",
+                             planners={"greedy"},
+                             sensor_ranges={3,4,5,6})
             plot_scalability(gathered_results,
-                                     suffix="rpgf-d6",
-                                     planners={"random", "greedy", "pouct", "pouct#preferred"},
-                                     sensor_ranges={6})
+                             suffix="rpgf-d6",
+                             planners={"random", "greedy", "pouct", "pouct#preferred"},
+                             sensor_ranges={6})
+            plot_scalability(gathered_results,
+                             suffix="rgf-nl-d3",
+                             planners={"random#nolook", "greedy", "greedy#nolook", "pouct#preferred", "pouct#nolook#preferred"},
+                             sensor_ranges={3})
+            plot_scalability(gathered_results,
+                             suffix="rgf-nl-d6",
+                             planners={"random#nolook", "greedy", "greedy#nolook", "pouct#preferred", "pouct#nolook#preferred"},
+                             sensor_ranges={6})
+            plot_scalability(gathered_results,
+                             suffix="f-nl-d3456",
+                             planners={"pouct#preferred", "pouct#nolook#preferred"},
+                             sensor_ranges={3,4,5,6})
+            plot_scalability(gathered_results,
+                             suffix="g-nl-d3456",
+                             planners={"greedy", "greedy#nolook"},
+                             sensor_ranges={3,4,5,6})                                    
 
         # Create a plot
         elif os.path.basename(path).lower().startswith("dynamics"):
@@ -95,9 +111,13 @@ def plot_scalability(gathered_results,
     # We plot reward vs the domain scale. Domain scale is represented
     # by a single integer n to indicate (n,n,n,1)
     colors = {"random": "red",
+              "random#nolook": "lightcoral",
               "greedy": "green",
+              "greedy#nolook": "lightgreen",
               "pouct": "blue",
-              "pouct#preferred": "purple"}
+              "pouct#nolook": "deepskyblue",
+              "pouct#preferred": "purple",
+              "pouct#nolook#preferred": "violet"}
     fmts = {"d3": "-",
             "d4": "--",
             "d5": "-.",

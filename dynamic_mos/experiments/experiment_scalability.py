@@ -19,11 +19,7 @@ def main():
         ((3, 3, 3, 1), 150, 500),
         ((4, 4, 4, 1), 150, 500),
         ((5, 5, 5, 1), 150, 500),
-        ((6, 6, 6, 1), 150, 500),
-        ((6, 6, 6, 1), 150, 500),
-        ((7, 7, 7, 1), 150, 500),
-        ((8, 8, 8, 1), 150, 500),
-        ((9, 9, 9, 1), 150, 500)]       
+        ((6, 6, 6, 1), 150, 500)]
 
     random.shuffle(scenarios)
     # Split the seeds into |scenarios| groups
@@ -59,9 +55,10 @@ def main():
                 "exploration_const": big,
                 "max_time": max_time,
                 "max_steps": max_steps,
+                "max_depth": 10,
                 "visualize": VIZ,
                 "planning_time": 0.7,
-                "discount_factor": 0.99,
+                "discount_factor": 0.95,
                 "prior": "uniform"
             }
             
@@ -82,17 +79,17 @@ def main():
 
                 # Look together with move
                 params["look_after_move"] = True
-                random_trial = make_trial(trial_name, world, sensor, "random", **params)
-                greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
-                pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)
-                pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#preferred", **params)                
+                random_trial = make_trial(trial_name, world, sensor, "random#nolook", **params)
+                greedy_trial = make_trial(trial_name, world, sensor, "greedy#nolook", **params)
+                pouct_trial = make_trial(trial_name, world, sensor, "pouct#nolook", **params)
+                pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#nolook#preferred", **params)
                 all_trials.append(pouct_trial)
                 all_trials.append(pouct_preferred_trial)
                 all_trials.append(greedy_trial)
                 all_trials.append(random_trial)                
 
     # Generate scripts to run experiments and gather results
-    exp = Experiment("ScalabilityCC", all_trials, output_dir, verbose=True)
+    exp = Experiment("ScalabilityDD", all_trials, output_dir, verbose=True)
     exp.generate_trial_scripts(split=9)
     print("Find multiple computers to run these experiments.")
 

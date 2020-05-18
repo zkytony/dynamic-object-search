@@ -106,14 +106,7 @@ class DynamicMosTrial(Trial):
             visualize (bool) if True, show the pygame visualization.
         """
         robot_id = problem.agent.robot_id            
-        if planner_type == "pouct":
-            # Use POUCT
-            planner = pomdp_py.POUCT(max_depth=max_depth,
-                                     discount_factor=discount_factor,
-                                     planning_time=planning_time,
-                                     exploration_const=exploration_const,
-                                     rollout_policy=problem.agent.policy_model)  # Random by default
-        elif planner_type.startswith("pouct") and planner_type.endswith("preferred"):
+        if planner_type.startswith("pouct") and planner_type.endswith("preferred"):
             assert isinstance(problem.agent.policy_model, PreferredPolicyModel),\
                 "Using pouct_preferred. Agent policy should be preferred policy model."
             planner = pomdp_py.POUCT(max_depth=max_depth,
@@ -122,14 +115,21 @@ class DynamicMosTrial(Trial):
                                      exploration_const=exploration_const,
                                      rollout_policy=problem.agent.policy_model,   # agent's policy model is preferred
                                      action_prior=problem.agent.policy_model.action_prior)
+        elif planner_type.startswith("pouct"):
+            # Use POUCT
+            planner = pomdp_py.POUCT(max_depth=max_depth,
+                                     discount_factor=discount_factor,
+                                     planning_time=planning_time,
+                                     exploration_const=exploration_const,
+                                     rollout_policy=problem.agent.policy_model)  # Random by default
         elif planner_type == "pomcp":
             raise ValueError("Not supported for now.")
         elif planner_type == "pomcp_preferred":
             raise ValueError("Not supported for now.")
-        elif planner_type == "random":
+        elif planner_type.startswith("random"):
             planner = RandomPlanner(problem.env.grid_map,
                                     look_after_move=problem.look_after_move)
-        elif planner_type == "greedy":
+        elif planner_type.startswith("greedy"):
             planner = GreedyPlanner(problem.env.grid_map,
                                     look_after_move=problem.look_after_move)
         else:
@@ -289,9 +289,8 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
                    "max_steps": kwargs.get("max_steps", 500),
                    "visualize": kwargs.get("visualize", True)}
     sensor_str = sensor.replace(" ", ":").replace("_", "~")    
-    return DynamicMosTrial("%s_%s-%s-%s-look%s" % (trial_name, planner_type,
-                                                   problem_args["prior"], sensor_str,
-                                                   str(problem_args["look_after_move"])),
+    return DynamicMosTrial("%s_%s-%s-%s" % (trial_name, planner_type,
+                                            problem_args["prior"], sensor_str),
                            config={"problem_args": problem_args,
                                    "solver_args": solver_args,
                                    "world": world})

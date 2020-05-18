@@ -42,10 +42,27 @@ def test_single(case, ntrials=1, planner_type="pouct",
                                  look_after_move=True)
         results.append(_total_reward)
     return results
+
+def test_particular_world(world, planner_type="pouct", sensor_range=4,
+                          planning_time=0.7, discount_factor=0.99,
+                          look_after_move=False, max_depth=20):
+    _total_reward = unittest(world, planner_type=planner_type,
+                             sensor_range=sensor_range,
+                             planning_time=planning_time,
+                             discount_factor=discount_factor,
+                             look_after_move=look_after_move,
+                             max_depth=max_depth)
     
 
 if __name__ == "__main__":
     random.seed(90703)
-    test_single((8,8,8,1), ntrials=1, planner_type="pouct_preferred",
-                planning_time=0.9, discount_factor=0.95)
+    # test_single((8,8,8,1), ntrials=1, planner_type="greedy",
+    #             planning_time=0.9, discount_factor=0.95)
     # test()
+    test_particular_world(dynamic_world_8,
+                          planner_type="greedy",
+                          sensor_range=1,
+                          planning_time=0.7,
+                          discount_factor=0.95,
+                          look_after_move=False,
+                          max_depth=20)

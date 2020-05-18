@@ -26,6 +26,20 @@ xx..xxx.Dxx
 xxxxxxxxxxx
 """
 
+map4 = \
+"""
+...........xxxxxxxxxx.........
+...........xxxxxxxxxx.........
+...........xxxxxxxxxx.........
+..............................
+...........xxxxxxxxxx.........
+...........xxxxxxxxxx.........
+...........xxxxxxxxxx.........
+..............................
+...........xxxxxxxxxx.........
+...........xxxxxxxxxx.........
+"""
+
 dynamic_world_1 = (place_objects(map1,
                                  {"r": (3,3),
                                   "D": (0,0)}),
@@ -75,3 +89,20 @@ dynamic_world_6 = (place_objects(map2,
                    "r",
                    {"D": ("random", 0.5),
                     "E": ("iterative", [(9,1),(9,2),(9,3),(10,3),(11,3),(11,2),(11,1),(10,1)])})
+
+
+dynamic_world_7 = (place_objects(map4,
+                                 {"r": (28,8),
+                                  "D": (29,2),
+                                  "E": (8,1)}),
+                   "r",
+                   {"D": ("random", 1.0),
+                    "E": ("random", 1.0)})
+
+dynamic_world_8 = (place_objects(map2,
+                                 {"r": (2,1),
+                                  "D": (12,3),
+                                  "E": (9,1)}),
+                   "r",
+                   {"D": ("goal", ((2,1), 0.1)),
+                    "E": ("random", 0.5)})

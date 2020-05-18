@@ -94,6 +94,9 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                 elif policy_type == "random":
                     motion_policies[objid] =\
                         RandomStayPolicy(grid_map, motion_policies[objid][1])
+                elif policy_type == "goal":
+                    motion_policies[objid] =\
+                        EpsilonGoalPolicy(grid_map, *motion_policies[objid][1])                    
                 else:
                     raise ValueError("Unrecognized motion policy type")
             # Make init state

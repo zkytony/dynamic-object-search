@@ -106,10 +106,7 @@ class GridMap:
         prev = {position1: None}
         while len(S) < len(V):
             diff_set = V - S
-            try:
-                v = min(diff_set, key=lambda v: d[v])
-            except:
-                import pdb; pdb.set_trace()
+            v = min(diff_set, key=lambda v: d[v])
             S.add(v)
             neighbors = self.get_neighbors(v, all_motion_actions)
             for w in neighbors:
@@ -119,25 +116,23 @@ class GridMap:
                     d[w] = d[v] + cost_vw
                     prev[w] = (v, motion_action)
 
-        # Returns a path or a sequence of actions
-        if return_actions:
-            # Return a sequence of actions that moves the robot from position1 to position2.
-            actions = []
-            pair = prev[position2]
+        # Return a path
+        path = []
+        pair = prev[position2]
+        if pair is None:
+            if not return_actions:
+                path.append(position2)
+        else:
             while pair is not None:
                 position, action = pair
-                actions.append(action)
+                if return_actions:
+                    # Return a sequence of actions that moves the robot from position1 to position2.
+                    path.append(action)
+                else:
+                    # Returns the grid cells along the path
+                    path.append(position)
                 pair = prev[position]
-            return list(reversed(actions))
-        else:
-            # Returns the grid cells along the path
-            cells = []
-            pair = prev[position2]
-            while pair is not None:
-                position, _ = pair
-                cells.append(position)
-                pair = prev[position]
-            return list(reversed(cells))
+        return list(reversed(path))
         
         
         

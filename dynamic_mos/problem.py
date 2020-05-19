@@ -73,6 +73,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
             num_particles (int): setting for the particle belief representation
         """
         grid_map = None
+        robot_id = robot_char if type(robot_char) == int else interpret_robot_id(robot_char)
         if env is None:
             assert grid_map_str is not None and sensors is not None,\
                 "Since env is not provided, you must provide string descriptions"\
@@ -96,11 +97,15 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                         RandomStayPolicy(grid_map, motion_policies[objid][1])
                 elif policy_type == "goal":
                     motion_policies[objid] =\
-                        EpsilonGoalPolicy(grid_map, *motion_policies[objid][1])                    
+                        EpsilonGoalPolicy(grid_map, *motion_policies[objid][1])
+                elif policy_type == "adversarial":
+                    motion_policies[objid] =\
+                        AdversarialPolicy(grid_map, sensors[robot_id].max_range,
+                                          motion_policies[objid][1])
                 else:
                     raise ValueError("Unrecognized motion policy type")
             # Make init state
-            init_state = MosOOState({**objects, **robots})
+            init_state = MosOOState(robot_id, {**objects, **robots})
             env = MosEnvironment(dim,
                                  init_state, sensors,
                                  grid_map=grid_map,
@@ -121,7 +126,6 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
         # can keep track of the states of multiple agents, but a POMDP is still
         # only defined over a single agent. Perhaps, MultiAgent is just a kind
         # of Agent, which will make the implementation of multi-agent POMDP cleaner.
-        robot_id = robot_id if type(robot_char) == int else interpret_robot_id(robot_char)
         agent_grid_map = env.grid_map if agent_has_map else None
         action_prior = None
         if use_preferred_policy:

@@ -64,7 +64,8 @@ class RobotState(pomdp_py.ObjectState):
         return self.attributes['objects_found']
 
 class MosOOState(pomdp_py.OOState):
-    def __init__(self, object_states):
+    def __init__(self, robot_id, object_states):
+        self.robot_id = robot_id
         super().__init__(object_states)
     def object_pose(self, objid):
         return self.object_states[objid]["pose"]
@@ -74,6 +75,12 @@ class MosOOState(pomdp_py.OOState):
     def object_poses(self):
         return {objid:self.object_states[objid]['pose']
                 for objid in self.object_states}
+    @property
+    def robot_state(self):
+        return self.object_states[self.robot_id]
+    @property
+    def robot_pose(self):
+        return self.object_states[self.robot_id]["pose"]    
     def __str__(self):
         return 'MosOOState%s' % (str(self.object_states))
     def __repr__(self):

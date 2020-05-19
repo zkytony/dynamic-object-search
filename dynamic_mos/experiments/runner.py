@@ -172,8 +172,10 @@ class DynamicMosTrial(Trial):
                 action_value = problem.agent.tree[real_action].value
                 
             # Execute action
+            robot_state = copy.deepcopy(problem.env.state.robot_state)
             reward = problem.env.state_transition(real_action, execute=True,
                                                   robot_id=robot_id)
+            next_robot_state = copy.deepcopy(problem.env.state.robot_state)
 
             # Receive observation (timed)
             _start = time.time()
@@ -184,8 +186,7 @@ class DynamicMosTrial(Trial):
             problem.agent.clear_history()  # truncate history
             problem.agent.update_history(real_action, real_observation)
             belief_update(problem.agent, real_action, real_observation,
-                          problem.env.state.object_states[robot_id], planner,
-                          # We assume the agent knows which objects are dynamic
+                          next_robot_state, robot_state, planner,
                           dynamic_object_ids=problem.env.dynamic_object_ids)
             _time_used += time.time() - _start
 

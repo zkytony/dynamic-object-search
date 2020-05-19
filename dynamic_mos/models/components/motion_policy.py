@@ -4,6 +4,11 @@ import pomdp_py
 import random
 from ...domain.state import *
 from ...domain.action import *
+from ...utils import *
+
+def next_pose(pose, action):
+    return (pose[0] + action[0],
+            pose[1] + action[1])
 
 class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
     """A simple Deterministic motion policy where the object
@@ -79,8 +84,7 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
     def _compute_legal_actions(self, object_pose):
         legal_actions = []
         for action in self._motion_actions:
-            next_object_pose = (object_pose[0] + action.motion[0],
-                                object_pose[1] + action.motion[1])
+            next_object_pose = next_pose(object_pose, action.motion)
             if self._grid_map.within_bounds(next_object_pose)\
                and next_object_pose not in self._grid_map.obstacle_poses:
                 legal_actions.append(action)
@@ -122,8 +126,7 @@ class RandomStayPolicy(StochaisticPolicy):
             # move
             legal_actions = self._legal_actions[object_state.pose]
             action = random.choice(legal_actions)
-            next_object_pose = (object_state.pose[0] + action.motion[0],
-                                object_state.pose[1] + action.motion[1])            
+            next_object_pose = next_pose(object_state.pose, action.motion)          
         else:
             # stay
             next_object_pose = object_state.pose
@@ -196,17 +199,89 @@ class EpsilonGoalPolicy(StochaisticPolicy):
                 # Moves randomly
                 legal_actions = self._legal_actions[object_state.pose]
                 action = random.choice(legal_actions)            
-                next_object_pose = (object_state.pose[0] + action.motion[0],
-                                    object_state.pose[1] + action.motion[1])            
+                next_object_pose = next_pose(object_state.pose, action.motion)
         return ObjectState(object_state,
                            object_state.objclass,
                            next_object_pose,
                            time=object_state.time+1)
 
 
-class AdverserialPolicy(pomdp_py.GenerativeDistribution):
-    pass
+class AdversarialPolicy(StochaisticPolicy):
+    def __init__(self, grid_map, sensor_range, pr_stay=0.3):
+        """With probability `pr_stay`, the object stays in place.
+        With the complement probability, the agent moves to maintain
+        a distance of more than sensor_range+1 from the robot. The
+        object randomly chooses an action that suffices maintaining
+        that distance."""
+        super().__init__(grid_map)
+        self._sensor_range = sensor_range
+        self._pr_stay = pr_stay
+
+    def _adversarial_actions(self, object_pose, robot_pose):
+        """Maintain distance if possible. If not at all,
+        then just return the legal actions at this object pose"""
+        def is_adversarial(action, object_pose, robot_pose):
+            # Considered adversarial if the distance between object and robot
+            # after taken the given action maintains to be greater than sensor_range
+            return euclidean_dist(
+                next_pose(object_pose, action.motion), robot_pose) > (self._sensor_range+1)
+        adv_actions = [action
+                       for action in self._legal_actions[object_pose]
+                       if is_adversarial(action, object_pose, robot_pose)]
+        if len(adv_actions) > 0:
+            return adv_actions
+        else:
+            return self._legal_actions[object_pose]
+
+    def probability(self, next_object_state, cur_object_state, cur_robot_state):
+        cur_object_pose = cur_object_state.pose
+        next_object_pose = next_object_state.pose        
+        diff_x = abs(cur_object_pose[0] - next_object_pose[0])
+        diff_y = abs(cur_object_pose[1] - next_object_pose[1])
+        if not ((diff_x == STEP_SIZE and diff_y == 0)
+                or (diff_x == 0 and diff_y == STEP_SIZE)):
+            return 1e-9
+
+        if next_object_pose == cur_object_pose:
+            # stayed
+            return self._pr_stay
+        else:
+            # get the adversarial actions
+            actions = self._adversarial_actions(cur_object_pose, cur_robot_state.pose)
+            for action in actions:
+                if next_pose(cur_object_pose, action.motion) == next_object_pose:
+                    return (1.0 - self._pr_stay) / len(actions)
+            return 1e-9
+
+    def random(self, object_state, robot_state):
+        if random.uniform(0,1) > self._pr_stay:
+            # move adversarially
+            action = random.choice(
+                self._adversarial_actions(object_state.pose, robot_state.pose))
+            next_object_pose = next_pose(object_state.pose, action.motion)
+        else:
+            # stay
+            next_object_pose = object_state.pose
+        return ObjectState(object_state,
+                           object_state.objclass,
+                           next_object_pose,
+                           time=object_state.time+1)
 
 
-class AdverserialGoalPolicy(pomdp_py.GenerativeDistribution):
-    pass
+class AdverserialGoalPolicy(AdversarialPolicy, EpsilonGoalPolicy):
+    def __init__(self, grid_map, goal_pose, sensor_range, pr_stay=0.1, stop_at_goal=False):
+        AdversarialPolicy.__init__(self, grid_map, sensor_range, pr_stay=pr_stay)
+        EpsilonGoalPolicy.__init__(self, grid_map, goal_pose, epsilon=1e-9, stop_at_goal=stop_at_goal)
+
+    def probability(self, next_object_state, cur_object_state, cur_robot_state):
+        cur_object_pose = cur_object_state.pose
+        next_object_pose = next_object_state.pose        
+        diff_x = abs(cur_object_pose[0] - next_object_pose[0])
+        diff_y = abs(cur_object_pose[1] - next_object_pose[1])
+        if not ((diff_x == STEP_SIZE and diff_y == 0)
+                or (diff_x == 0 and diff_y == STEP_SIZE)
+                or (diff_x == 0 and diff_y == 0)):
+            return 1e-9
+        # TODO: This needs more work.
+
+    

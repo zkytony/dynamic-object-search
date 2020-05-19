@@ -27,14 +27,17 @@ class MosOOBelief(pomdp_py.OOBelief):
         super().__init__(object_beliefs)
 
     def mpe(self, **kwargs):
-        return MosOOState(pomdp_py.OOBelief.mpe(self, **kwargs).object_states)
+        return MosOOState(self.robot_id,
+                        pomdp_py.OOBelief.mpe(self, **kwargs).object_states)
 
     def random(self, **kwargs):
-        return MosOOState(pomdp_py.OOBelief.random(self, **kwargs).object_states)
+        return MosOOState(self.robot_id,
+                          pomdp_py.OOBelief.random(self, **kwargs).object_states)
 
 
 ### Belief Update ###
-def belief_update(agent, real_action, real_observation, next_robot_state,
+def belief_update(agent, real_action, real_observation,
+                  next_robot_state, robot_state,
                   planner, dynamic_object_ids=set({})):
     """Updates the agent's belief; The belief update may happen
     through planner update (e.g. when planner is POMCP)."""
@@ -74,7 +77,8 @@ def belief_update(agent, real_action, real_observation, next_robot_state,
                         # The agent knows the objects are static.
                         static_transition=static_transition,
                         next_state_space=next_state_space,
-                        oargs={"next_robot_state": next_robot_state})
+                        oargs={"next_robot_state": next_robot_state},
+                        targs={"robot_state": robot_state})
             else:
                 raise ValueError("Unexpected program state. Are you using %s for %s?"
                                  % (belief_rep, str(type(planner))))
@@ -236,7 +240,7 @@ def _initialize_particles_belief(dim, robot_id, object_ids, prior,
         for objid in oo_particles:
             random_particle = random.sample(oo_particles[objid], 1)[0]
             object_states[_id] = copy.deepcopy(random_particle)
-        particles.append(MosOOState(object_states))
+        particles.append(MosOOState(robot_id, object_states))
     return pomdp_py.Particles(particles)
 
 

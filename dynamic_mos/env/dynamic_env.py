@@ -130,7 +130,7 @@ def interpret_dynamic_world(world_spec):
         sensors[robot_id] = interpret_sensor(world_spec["sensors"][robot_name],
                                              robot_id)
     # Make init state
-    init_state = MosOOState({**objects, **robots})
+    init_state = MosOOState(robot_id, {**objects, **robots})
     return MosEnvironment((w,l),
                           init_state, sensors,
                           obstacles=obstacles,

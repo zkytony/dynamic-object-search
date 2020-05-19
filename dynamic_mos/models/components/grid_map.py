@@ -46,7 +46,7 @@ class GridMap:
         into obstacles). The validity is determined under
         the assumption that the robot dynamics is deterministic.
         """
-        state = MosOOState(self._obstacle_states)
+        state = MosOOState(robot_id, self._obstacle_states)
         state.set_object_state(robot_id,
                                RobotState(robot_id, robot_pose, None, None))
 

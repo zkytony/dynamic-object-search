@@ -1,6 +1,7 @@
 # Dynamic object transition model
 import pomdp_py
 from .transition_model import StaticObjectTransitionModel, RobotTransitionModel
+from .components.motion_policy import AdversarialPolicy
 from ..domain.state import *
 
 class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
@@ -15,23 +16,33 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
         self._motion_policy = motion_policy
         self._epsilon = epsilon
 
-    def probability(self, next_object_state, state, action):
+    def probability(self, next_object_state, state, action, robot_state=None):
         if isinstance(state, pomdp_py.OOState):
-            return self._motion_policy.probability(next_object_state,
-                                                   state.object_states[self._objid])
+            object_state = state.object_states[self._objid]
+            robot_state = state.robot_state
         else:
             assert isinstance(state, ObjectState)
-            return self._motion_policy.probability(next_object_state,
-                                                   state)
+            object_state = state
+            assert robot_state is not None
 
+        if isinstance(self._motion_policy, AdversarialPolicy):
+            return self._motion_policy.probability(next_object_state,
+                                                   object_state, robot_state)
+        else:
+            return self._motion_policy.probability(next_object_state,
+                                                   object_state)
 
     def sample(self, state, action, argmax=False):
-        cur_object_state = state.object_states[self._objid]
         if argmax:
-            next_object_state = self._motion_policy.argmax(cur_object_state)
+            sample_func = self._motion_policy.argmax
         else:
-            next_object_state = self._motion_policy.random(cur_object_state)
-        return next_object_state
+            sample_func = self._motion_policy.random
+
+        object_state = state.object_states[self._objid]            
+        if isinstance(self._motion_policy, AdversarialPolicy):
+            return sample_func(object_state, state.robot_state)
+        else:
+            return sample_func(object_state)
 
     def argmax(self, state, action):
         return self.sample(state, action, argmax=True)        
@@ -61,20 +72,21 @@ class DynamicMosTransitionModel(pomdp_py.OOTransitionModel):
                 transition_models[objid] = DynamicObjectTransitionModel(objid,
                                                                         motion_policies[objid],
                                                                         epsilon=epsilon)        
-        for robot_id in sensors:
-            transition_models[robot_id] = RobotTransitionModel(sensors[robot_id],
-                                                               dim,
-                                                               epsilon=epsilon,
-                                                               look_after_move=look_after_move)
+        assert len(sensors) == 1, "Only deal with one robot in this domain!"
+        robot_id = list(sensors.keys())[0]
+        transition_models[robot_id] = RobotTransitionModel(sensors[robot_id],
+                                                           dim,
+                                                           epsilon=epsilon,
+                                                           look_after_move=look_after_move)
         super().__init__(transition_models)
 
     def sample(self, state, action, **kwargs):
         oostate = pomdp_py.OOTransitionModel.sample(self, state, action, **kwargs)
-        return MosOOState(oostate.object_states)
+        return MosOOState(state.robot_id, oostate.object_states)
 
     def argmax(self, state, action, normalized=False, **kwargs):
         oostate = pomdp_py.OOTransitionModel.argmax(self, state, action, **kwargs)
-        return MosOOState(oostate.object_states)
+        return MosOOState(state.robot_id, oostate.object_states)
 
     def motion_policy(self, objid):
         return self.dynamic_object_motion_policies.get(objid, None)

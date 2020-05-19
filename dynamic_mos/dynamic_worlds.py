@@ -106,3 +106,12 @@ dynamic_world_8 = (place_objects(map2,
                    "r",
                    {"D": ("goal", ((2,1), 0.8)),
                     "E": ("random", 0.5)})
+
+
+dynamic_world_9 = (place_objects(map2,
+                                 {"r": (2,1),
+                                  "D": (12,3),
+                                  "E": (9,1)}),
+                   "r",
+                   {"D": ("goal", ((2,1), 0.8)),
+                    "E": ("adversarial", 0.05)})

@@ -18,7 +18,6 @@ def main():
     max_steps = 150
     max_time = 500
     world_case = (8, 8, 8, 1)
-    sensor = make_laser_sensor(90, (1, 4), 0.5, False)
     
     scenarios = [(0.01, 0.01),
                  (0.1, 0.1),
@@ -70,25 +69,28 @@ def main():
             }
             
             # sensors
-            params["look_after_move"] = False
-            random_trial = make_trial(trial_name, world, sensor, "random", **params)
-            greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
-            pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)
-            pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#preferred", **params)
-            all_trials.append(pouct_trial)
-            all_trials.append(pouct_preferred_trial)
-            all_trials.append(greedy_trial)
-            all_trials.append(random_trial)
+            for far in {3,4,5,6}:
+                sensor = make_laser_sensor(90, (1, far), 0.5, False)
+                
+                params["look_after_move"] = False
+                random_trial = make_trial(trial_name, world, sensor, "random", **params)
+                greedy_trial = make_trial(trial_name, world, sensor, "greedy", **params)
+                pouct_trial = make_trial(trial_name, world, sensor, "pouct", **params)
+                pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#preferred", **params)
+                all_trials.append(pouct_trial)
+                all_trials.append(pouct_preferred_trial)
+                all_trials.append(greedy_trial)
+                all_trials.append(random_trial)
 
-            params["look_after_move"] = True
-            random_trial = make_trial(trial_name, world, sensor, "random#nolook", **params)
-            greedy_trial = make_trial(trial_name, world, sensor, "greedy#nolook", **params)
-            pouct_trial = make_trial(trial_name, world, sensor, "pouct#nolook", **params)
-            pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#nolook#preferred", **params)
-            all_trials.append(pouct_trial)
-            all_trials.append(pouct_preferred_trial)
-            all_trials.append(greedy_trial)
-            all_trials.append(random_trial)            
+                params["look_after_move"] = True
+                random_trial = make_trial(trial_name, world, sensor, "random#nolook", **params)
+                greedy_trial = make_trial(trial_name, world, sensor, "greedy#nolook", **params)
+                pouct_trial = make_trial(trial_name, world, sensor, "pouct#nolook", **params)
+                pouct_preferred_trial = make_trial(trial_name, world, sensor, "pouct#nolook#preferred", **params)
+                all_trials.append(pouct_trial)
+                all_trials.append(pouct_preferred_trial)
+                all_trials.append(greedy_trial)
+                all_trials.append(random_trial)            
 
     # Generate scripts to run experiments and gather results
     exp = Experiment("EpsilonGoalAA", all_trials, output_dir, verbose=True)

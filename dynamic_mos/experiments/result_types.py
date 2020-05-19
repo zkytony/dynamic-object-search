@@ -8,6 +8,19 @@ import json
 import matplotlib.pyplot as plt
 import seaborn
 
+COLORS = {"random": "red",
+          "random#nolook": "lightcoral",
+          "greedy": "green",
+          "greedy#nolook": "lightgreen",
+          "pouct": "blue",
+          "pouct#nolook": "deepskyblue",
+          "pouct#preferred": "purple",
+          "pouct#nolook#preferred": "violet"}
+FMTS = {"d3": "-",
+        "d4": "--",
+        "d5": "-.",
+        "d6": ":"}
+
 #### Actual results for experiments ####
 class RewardsResult(YamlResult):
     def __init__(self, rewards):
@@ -102,26 +115,18 @@ class RewardsResult(YamlResult):
                                   planners={"random", "greedy", "pouct", "pouct#preferred"},
                                   sensor_ranges={4})
 
+        elif os.path.basename(path).lower().startswith("epsilongoal"):
+            plot_epsilongoal(gathered_results,
+                             suffix="all-d4",
+                             planners={"random", "greedy", "pouct", "pouct#preferred"},
+                             sensor_ranges={4})
+
         return True
 
 
 def plot_scalability(gathered_results,
                      suffix="plot", plot_type="rewards",
                      planners=None, sensor_ranges=None):
-    # We plot reward vs the domain scale. Domain scale is represented
-    # by a single integer n to indicate (n,n,n,1)
-    colors = {"random": "red",
-              "random#nolook": "lightcoral",
-              "greedy": "green",
-              "greedy#nolook": "lightgreen",
-              "pouct": "blue",
-              "pouct#nolook": "deepskyblue",
-              "pouct#preferred": "purple",
-              "pouct#nolook#preferred": "violet"}
-    fmts = {"d3": "-",
-            "d4": "--",
-            "d5": "-.",
-            "d6": ":"}
     fig = plt.figure()
     ax = plt.gca()
     xvals = []
@@ -156,8 +161,8 @@ def plot_scalability(gathered_results,
         y_meth = [means[method_name][s] for s in xvals]
         yerr_meth = [errs[method_name][s] for s in xvals]
         plt.errorbar(xvals, y_meth, yerr=yerr_meth, label=method_name,
-                     color=colors[planner_type],
-                     fmt=fmts[range_str])
+                     color=COLORS[planner_type],
+                     fmt=FMTS[range_str])
         
     plt.legend(loc="lower left")
     ax.set_title("Performance as Problem Scales")
@@ -171,19 +176,8 @@ def plot_scalability(gathered_results,
         fig.savefig("detections-%s.png" % suffix)
 
 
-
 def plot_dynamics(gathered_results, plot_type="rewards",
                   suffix="plot", planners=None, sensor_ranges=None):
-    # We plot reward vs the domain scale. Domain scale is represented
-    # by a single integer n to indicate (n,n,n,1)
-    colors = {"random": "red",
-              "greedy": "green",
-              "pouct": "blue",
-              "pouct#preferred": "purple"}
-    fmts = {"d3": "-",
-            "d4": "--",
-            "d5": "-.",
-            "d6": ":"}
     fig = plt.figure()
     ax = plt.gca()
     xvals = []
@@ -218,8 +212,8 @@ def plot_dynamics(gathered_results, plot_type="rewards",
         y_meth = [means[method_name][s] for s in xvals]
         yerr_meth = [errs[method_name][s] for s in xvals]
         plt.errorbar(xvals, y_meth, yerr=yerr_meth, label=method_name,
-                     color=colors[planner_type],
-                     fmt=fmts[range_str])
+                     color=COLORS[planner_type],
+                     fmt=FMTS[range_str])
         
     plt.legend(bbox_to_anchor=(0., 0.02, 1., .102), loc='lower left',
                ncol=2, mode="expand", borderaxespad=0.)        
@@ -234,8 +228,63 @@ def plot_dynamics(gathered_results, plot_type="rewards",
         ax.set_ylabel("Number of Detected Objects")
         ax.set_ylim(bottom=-0.2)
         fig.savefig("detections-%s.png" % suffix)
-    
 
+def plot_epsilongoal(gathered_results,
+                     suffix="plot", plot_type="rewards",
+                     planners=None, sensor_ranges=None):
+    fig = plt.figure()
+    ax = plt.gca()
+    xvals = []
+    means = {}
+    errs = {}
+    for global_name in gathered_results:
+        scenario = global_name.split("epsgoal(")[1].split("_")[0][:-1]
+        world_case = scenario.split(")-")[0][1:]
+        dynamics = round(float(world_case.split("-")[1]), 2)
+        xvals.append(dynamics)
+
+        results = gathered_results[global_name]
+        for specific_name in results:
+            planner_type = specific_name.split("-")[0]
+            sensor_str = specific_name.split("-")[2]
+            max_range = int(sensor_str.split(":")[3].split("=")[-1])
+            method_name = "%s-d%s" % (planner_type, max_range)
+            if planners is not None and planner_type not in planners:
+                continue
+            if sensor_ranges is not None and max_range not in sensor_ranges:
+                continue
+            if method_name not in means:
+                means[method_name] = {}
+                errs[method_name] = {}
+            means[method_name][dynamics] = results[specific_name]["mean"]
+            errs[method_name][dynamics] = results[specific_name]["conf-95"]
+    xvals = list(sorted(xvals))
+
+    for method_name in sorted(means):
+        planner_type = method_name.split("-")[0]
+        range_str = method_name.split("-")[1]
+        y_meth = [means[method_name][s] for s in xvals]
+        yerr_meth = [errs[method_name][s] for s in xvals]
+        plt.errorbar(xvals, y_meth, yerr=yerr_meth, label=method_name,
+                     color=COLORS[planner_type],
+                     fmt=FMTS[range_str])
+        
+    # plt.legend(bbox_to_anchor=(0., 0.02, 1., .102), loc='lower left',
+    #            ncol=2, mode="expand", borderaxespad=0.)
+    plt.legend(loc="lower left")
+    ax.set_title("Performance as Randomness Increases (World Scale: 8)")
+    ax.set_xlabel("Domain Scale")
+    ax.xaxis.set_ticks(xvals)
+    if plot_type == "rewards":
+        ax.set_ylabel("Cumulative Reward")
+        # ax.set_ylim(bottom=-300)
+        fig.savefig("rewards-%s.png" % suffix)
+    elif plot_type == "detections":
+        ax.set_ylabel("Number of Detected Objects")
+        # ax.set_ylim(bottom=-0.2)
+        fig.savefig("detections-%s.png" % suffix)
+
+        
 class StatesResult(PklResult):
     def __init__(self, states):
         """list of state objects"""

@@ -91,14 +91,12 @@ class PreferredPolicyModel(PolicyModel):
 class DynamicMosActionPrior(pomdp_py.ActionPrior):
     def __init__(self, robot_id, grid_map, num_visits_init, val_init,
                  look_after_move=False):
-        """level (int) used to set the level of 'manual'ness"""        
         self.robot_id = robot_id
         self.grid_map = grid_map
         self.all_motion_actions = None
         self.num_visits_init = num_visits_init
         self.val_init = val_init
         self._look_after_move = look_after_move
-        self._level = level
 
     def set_motion_actions(self, motion_actions):
         self.all_motion_actions = motion_actions

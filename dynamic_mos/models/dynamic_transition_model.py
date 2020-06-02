@@ -4,6 +4,27 @@ from .transition_model import StaticObjectTransitionModel, RobotTransitionModel
 from .components.motion_policy import AdversarialPolicy
 from ..domain.state import *
 
+class DynamicAgentTransitionModel(pomdp_py.TransitionModel):
+    """The difference between DynamicAgentTransitionModel
+    and DynamicObjectTransitionModel is that the motion
+    policy of the agent is conditioned on the action."""
+    def __init__(self, objid, motion_policy, epsilon=1e-9):
+        self._objid = objid
+        self._motion_policy = motion_policy
+        self._epsilon = epsilon
+        
+    def probability(self, next_object_state, state, action):
+        return self._motion_policy.probability(next_object_state,
+                                               state, action)
+
+    def sample(self, state, action, argmax=False):
+        if argmax:
+            sample_func = self._motion_policy.argmax
+        else:
+            sample_func = self._motion_policy.random
+        return sample_func(state, action)
+    
+
 class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
 
     """
@@ -32,15 +53,22 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
             return self._motion_policy.probability(next_object_state,
                                                    object_state)
 
-    def sample(self, state, action, argmax=False):
+    def sample(self, state, action, argmax=False, robot_state=None):
+        if isinstance(state, pomdp_py.OOState):
+            object_state = state.object_states[self._objid]
+            robot_state = state.robot_state
+        else:
+            assert isinstance(state, ObjectState)
+            object_state = state
+            assert robot_state is not None
+
         if argmax:
             sample_func = self._motion_policy.argmax
         else:
             sample_func = self._motion_policy.random
 
-        object_state = state.object_states[self._objid]            
         if isinstance(self._motion_policy, AdversarialPolicy):
-            return sample_func(object_state, state.robot_state)
+            return sample_func(object_state, robot_state)
         else:
             return sample_func(object_state)
 

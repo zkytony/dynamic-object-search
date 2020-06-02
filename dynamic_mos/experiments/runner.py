@@ -3,56 +3,11 @@ from dynamic_mos import *
 from dynamic_mos.dynamic_worlds import *
 from dynamic_mos.experiments.result_types import *
 from dynamic_mos.experiments.baselines.handcraft import *
+from dynamic_mos.experiments.world_types import *
 import copy
 import time
 import sys
 
-
-def create_two_room_world(room_width, room_height,
-                          hallway_width, hallway_height):
-    """Creates a world with two rooms connected by a hallway"""
-    if hallway_height > room_height:
-        raise ValueError("hallway height should be smaller than room's.")
-
-    arr = np.ones((room_height,
-                   room_width * 2 + hallway_width,)).astype(int)
-    # Left Room
-    arr[:, :room_width] = 0
-
-    # Right Room
-    arr[:, room_width + hallway_width : room_width*2 + hallway_width] = 0
-    
-    # Hallway
-    room_mid = room_height // 2    
-    if hallway_height == 1:
-        arr[room_mid : room_mid + hallway_height,
-            room_width : room_width + hallway_width] = 0
-    else:
-        hallway_mid = hallway_height // 2
-        arr[room_mid - hallway_mid : room_mid + hallway_mid,
-            room_width : room_width + hallway_width] = 0
-        
-
-    lines = []
-    for y in range(arr.shape[0]):
-        line = []
-        for x in range(arr.shape[1]):
-            if arr[y,x] == 0:
-                line.append(".")
-            else:
-                line.append("x")
-        lines.append(line)
-
-    # Create the string
-    finalstr = []
-    for row_chars in lines:
-        finalstr.append("".join(row_chars))
-    finalstr = "\n".join(finalstr)
-
-    # get a set of free locations
-    free_locations = set(tuple(reversed(loc))
-                         for loc in np.vstack(np.where(arr == 0)).transpose())
-    return finalstr, free_locations
 
 
 class DynamicMosTrial(Trial):
@@ -299,7 +254,8 @@ def make_trial(trial_name, world, sensor, planner_type, **kwargs):
 
 # Test
 def unittest(world=None, planner_type="pouct", sensor_range=4, max_depth=20,
-             planning_time=0.7, discount_factor=0.99, look_after_move=False):
+             planning_time=0.7, discount_factor=0.99, look_after_move=False,
+             belief_rep="histogram"):
     # random world
     save_path = None
     if len(sys.argv) > 1:
@@ -315,6 +271,7 @@ def unittest(world=None, planner_type="pouct", sensor_range=4, max_depth=20,
                                 sigma=0.01,  # observation model parameter
                                 epsilon=1.0, # observation model parameter
                                 grid_map_str=grid_map_str,
+                                belief_rep=belief_rep,
                                 sensors={robot_char: laserstr},
                                 # TODO FIX
                                 motion_policies_dict=motion_policies_dict,

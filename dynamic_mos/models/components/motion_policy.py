@@ -2,6 +2,7 @@
 
 import pomdp_py
 import random
+import math
 from ...domain.state import *
 from ...domain.action import *
 from ...utils import *
@@ -69,9 +70,12 @@ class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
 
 
 class StochaisticPolicy(pomdp_py.GenerativeDistribution):
-    def __init__(self, grid_map):
+    def __init__(self, grid_map, motion_actions=None):
         self._grid_map = grid_map
-        self._motion_actions = create_motion_actions(scheme="xy")
+        if motion_actions is None:
+            self._motion_actions = create_motion_actions(scheme="xy")
+        else:
+            self._motion_actions = motion_actions
         
         # Compute a map from position to candidate motions
         # for all positions on the map (for efficiency)
@@ -89,6 +93,14 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
                and next_object_pose not in self._grid_map.obstacle_poses:
                 legal_actions.append(action)
         return legal_actions
+
+    @property
+    def motion_actions(self):
+        return self._motion_actions
+
+    @property
+    def legal_actions(self):
+        return self._legal_actions 
 
     
 class RandomStayPolicy(StochaisticPolicy):
@@ -200,69 +212,102 @@ class EpsilonGoalPolicy(StochaisticPolicy):
                 legal_actions = self._legal_actions[object_state.pose]
                 action = random.choice(legal_actions)            
                 next_object_pose = next_pose(object_state.pose, action.motion)
-        return ObjectState(object_state,
+        return ObjectState(object_state["id"],
                            object_state.objclass,
                            next_object_pose,
                            time=object_state.time+1)
 
 
 class AdversarialPolicy(StochaisticPolicy):
-    def __init__(self, grid_map, sensor_range, pr_stay=0.3):
+    def __init__(self, grid_map, sensor_range, pr_stay=0.3,
+                 rule="avoid", motion_actions=None):
         """With probability `pr_stay`, the object stays in place.
         With the complement probability, the agent moves to maintain
         a distance of more than sensor_range+1 from the robot. The
         object randomly chooses an action that suffices maintaining
-        that distance."""
-        super().__init__(grid_map)
+        that distance.
+
+        rule can be `avoid` or `keep`. If `avoid`, the object will
+        always move away from the robot. If `keep`, the object will
+        choose actions that maintains sensor range distance away
+        from the robot."""
+        super().__init__(grid_map, motion_actions=motion_actions)
         self._sensor_range = sensor_range
         self._pr_stay = pr_stay
+        self._rule = rule
 
     def _adversarial_actions(self, object_pose, robot_pose):
         """Maintain distance if possible. If not at all,
         then just return the legal actions at this object pose"""
-        def is_adversarial(action, object_pose, robot_pose):
-            # Considered adversarial if the distance between object and robot
-            # after taken the given action maintains to be greater than sensor_range
-            return euclidean_dist(
-                next_pose(object_pose, action.motion), robot_pose) > (self._sensor_range+1)
-        adv_actions = [action
-                       for action in self._legal_actions[object_pose]
-                       if is_adversarial(action, object_pose, robot_pose)]
-        if len(adv_actions) > 0:
-            return adv_actions
+        candidate_actions = []        
+        if self._rule == "keep":
+            for action in self._legal_actions[object_pose]:
+                next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
+                if next_dist > self._sensor_range*math.sqrt(2):
+                    candidate_actions.append(action)
+        elif self._rule == "avoid":
+            cur_dist = euclidean_dist(robot_pose, object_pose)
+            for action in self._legal_actions[object_pose]:
+                next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
+                if next_dist > cur_dist:
+                    candidate_actions.append(action)
+        elif self._rule == "chase":
+            # Here the object is actually chasing the robot (useful if
+            # you want to use this to model a robot's policy (robot/object swap)
+            for action in self._legal_actions[object_pose]:
+                next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
+                if next_dist <= self._sensor_range*math.sqrt(2):
+                    candidate_actions.append(action)
         else:
-            return self._legal_actions[object_pose]
-
+            raise ValueError("Unknown adversarial rule %s" % self._rule)
+        return candidate_actions
+        
     def probability(self, next_object_state, cur_object_state, cur_robot_state):
         cur_object_pose = cur_object_state.pose
         next_object_pose = next_object_state.pose        
         diff_x = abs(cur_object_pose[0] - next_object_pose[0])
         diff_y = abs(cur_object_pose[1] - next_object_pose[1])
         if not ((diff_x == STEP_SIZE and diff_y == 0)
-                or (diff_x == 0 and diff_y == STEP_SIZE)):
+                or (diff_x == 0 and diff_y == STEP_SIZE)
+                or (diff_x == 0 and diff_y == 0)):
             return 1e-9
 
-        if next_object_pose == cur_object_pose:
-            # stayed
-            return self._pr_stay
+        actions = self._adversarial_actions(cur_object_pose, cur_robot_state.pose)
+        if len(actions) == 0:
+            # No adversarial actions possible.
+            if cur_object_pose == next_object_pose:
+                # Either the object decides to stay, or it has no clue. Either way,
+                # this is basically the only thing that can happen
+                return 1.0 - 1e-9
+            else:
+                return 1e-9
         else:
-            # get the adversarial actions
-            actions = self._adversarial_actions(cur_object_pose, cur_robot_state.pose)
-            for action in actions:
-                if next_pose(cur_object_pose, action.motion) == next_object_pose:
-                    return (1.0 - self._pr_stay) / len(actions)
-            return 1e-9
+            # There are candidate actions
+            if next_object_pose == cur_object_pose:
+                # But the object chose to stay
+                return self._pr_stay
+            else:
+                # The object must have taken an adversarial action
+                for action in actions:
+                    if next_pose(cur_object_pose, action.motion) == next_object_pose:
+                        return (1.0 - self._pr_stay) / len(actions)
+                return 1e-9
 
     def random(self, object_state, robot_state):
         if random.uniform(0,1) > self._pr_stay:
             # move adversarially
-            action = random.choice(
-                self._adversarial_actions(object_state.pose, robot_state.pose))
-            next_object_pose = next_pose(object_state.pose, action.motion)
+            candidate_actions = self._adversarial_actions(object_state.pose, robot_state.pose)
+            if len(candidate_actions) == 0:
+                # won't move, because no adversarial action
+                next_object_pose = object_state.pose
+            else:
+                # randomly choose an action from candidates
+                action = random.choice(candidate_actions)
+                next_object_pose = next_pose(object_state.pose, action.motion)
         else:
             # stay
             next_object_pose = object_state.pose
-        return ObjectState(object_state,
+        return ObjectState(object_state["id"],
                            object_state.objclass,
                            next_object_pose,
                            time=object_state.time+1)
@@ -283,5 +328,3 @@ class AdverserialGoalPolicy(AdversarialPolicy, EpsilonGoalPolicy):
                 or (diff_x == 0 and diff_y == 0)):
             return 1e-9
         # TODO: This needs more work.
-
-    

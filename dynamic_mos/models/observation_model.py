@@ -165,8 +165,11 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
         if not self._is_sensing(action):
             return ObjectObservation(self._objid, ObjectObservation.NULL)
         
+        robot_pose = next_state.pose(self._sensor.robot_id)
+        object_pose = next_state.pose(self._objid)
+        
         # Obtain observation according to distribution.
-        alpha, beta, gamma = self._compute_params(self._sensor.within_range(robot_pose, object_pose))        
+        alpha, beta, gamma = self._compute_params(self._sensor.within_range(robot_pose, object_pose))
 
         event_probs = {"A": alpha,
                        "B": beta,

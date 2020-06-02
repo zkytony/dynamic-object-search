@@ -51,6 +51,8 @@ def belief_update(agent, real_action, real_observation,
             if objid in next_robot_state['objects_found']:
                 continue  # already found this object
             belief_obj = agent.cur_belief.object_belief(objid)
+
+            # Histogram belief update
             if isinstance(belief_obj, pomdp_py.Histogram):
                 if objid == agent.robot_id:
                     # Assuming the agent can observe its own state:
@@ -79,9 +81,22 @@ def belief_update(agent, real_action, real_observation,
                         next_state_space=next_state_space,
                         oargs={"next_robot_state": next_robot_state},
                         targs={"robot_state": robot_state})
+
+            # Weighted particles belief update
+            elif isinstance(belief_obj, pomdp_py.WeightedParticles):
+                if objid == agent.robot_id:
+                    # Assuming the agent can observe its own state:                    
+                    new_belief = pomdp_py.Histogram({next_robot_state: 1.0})
+                else:
+                    new_belief = pomdp_py.update_weighted_particles_belief(
+                        belief_obj, real_action, real_observation.for_obj(objid),
+                        agent.observation_model[objid],
+                        agent.transition_model[objid],
+                        oargs={"next_robot_state": next_robot_state},
+                        targs={"robot_state": robot_state})
+                    
             else:
-                raise ValueError("Unexpected program state. Are you using %s for %s?"
-                                 % (belief_rep, str(type(planner))))
+                raise ValueError("Unexpected program state.")
 
             agent.cur_belief.set_object_belief(objid, new_belief)    
 
@@ -123,6 +138,11 @@ def initialize_belief(agent, dim, robot_id, object_ids, prior={},
         return _initialize_particles_belief(agent, dim, robot_id, object_ids,
                                             robot_orientations, num_particles=num_particles,
                                             grid_map=grid_map)
+    elif representation == "weighted_particles":
+        return _initialize_weighted_particles_belief(agent, dim, robot_id, object_ids,
+                                                     prior, robot_orientations,
+                                                     num_particles=num_particles,
+                                                     grid_map=grid_map) 
     else:
         raise ValueError("Unsupported belief representation %s" % representation)
 
@@ -185,7 +205,7 @@ def _initialize_histogram_belief(agent, dim, robot_id, object_ids,
 
 
 # WARNING: OUT OF DATE.
-def _initialize_particles_belief(dim, robot_id, object_ids, prior,
+def _initialize_particles_belief(agent, dim, robot_id, object_ids, prior,
                                  robot_orientations, num_particles=100,
                                  grid_map=None):
     """This returns a single set of particles that represent the distribution over a
@@ -243,6 +263,47 @@ def _initialize_particles_belief(dim, robot_id, object_ids, prior,
         particles.append(MosOOState(robot_id, object_states))
     return pomdp_py.Particles(particles)
 
+
+def _initialize_weighted_particles_belief(agent, dim, robot_id,
+                                          object_ids, prior, robot_orientations, num_particles=100,
+                                          grid_map=None):
+    oo_particles = {}  # objid -> WeightedParticles
+    width, length = dim
+    for objid in object_ids:
+        particle_candidates = []  # weighted particles ((state, weight))
+
+        if objid in prior:
+            total_prob = sum([prior[objid][pose] for pose in prior])
+            for pose in prior[objid]:
+                particle = ObjectState(objid, "target", pose)
+                weight = prior[objid][pose] / total_prob
+                particle_candidates.append((particle, weight))
+
+        else:
+            # No prior knowledge
+            for x in range(width):
+                for y in range(length):
+                    if grid_map is not None\
+                       and (x,y) in grid_map.obstacle_poses:
+                        continue
+                        
+                    particle = ObjectState(objid, "target", (x,y))
+                    particle_candidates.append((particle, 1.0 / (width * length)))
+
+        # Sample randomly `num_particles` number of particles from the list
+        particles = []
+        for _ in range(num_particles):
+            particles.append(random.choice(particle_candidates))
+        oo_particles[objid] = pomdp_py.WeightedParticles(particles)
+
+    # For the robot, assume it can observe its own state.
+    # Its pose must have been provided in the `prior`.
+    assert robot_id in prior, "Missing initial robot pose in prior."
+    init_robot_pose = list(prior[robot_id].keys())[0]
+    oo_particles[robot_id] = pomdp_py.Histogram({
+        RobotState(robot_id, init_robot_pose, (), None): 1.0})
+    return MosOOBelief(robot_id, oo_particles)
+    
 
 """If `object oriented` is True, then just like histograms, there will be
 one set of particles per object; Otherwise, there is a single set

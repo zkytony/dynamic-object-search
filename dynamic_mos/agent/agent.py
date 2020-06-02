@@ -23,7 +23,7 @@ class MosAgent(pomdp_py.Agent):
                  epsilon=1,   # parameter for observation model
                  belief_rep="histogram",  # belief representation, either "histogram" or "particles".
                  prior={},       # prior belief, as defined in belief.py:initialize_belief
-                 num_particles=100,  # used if the belief representation is particles
+                 num_particles=1000,  # used if the belief representation is particles
                  grid_map=None,  # GridMap used to avoid collision with obstacles (None if not provided)
                  motion_policies={},  # map from dynamic object id to MotionPolicy
                  big=100,

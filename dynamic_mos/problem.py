@@ -101,7 +101,7 @@ class DynamicMosOOPOMDP(pomdp_py.OOPOMDP):
                 elif policy_type == "adversarial":
                     motion_policies[objid] =\
                         AdversarialPolicy(grid_map, sensors[robot_id].max_range,
-                                          motion_policies[objid][1])
+                                          *(motion_policies[objid][1]))
                 else:
                     raise ValueError("Unrecognized motion policy type")
             # Make init state

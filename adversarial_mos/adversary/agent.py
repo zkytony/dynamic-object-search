@@ -2,10 +2,11 @@ import pomdp_py
 import random
 import copy
 from dynamic_mos.models.components.motion_policy import StochaisticPolicy, next_pose, AdversarialPolicy
-from dynamic_mos.models.dynamic_transition_model import DynamicObjectTransitionModel
+from dynamic_mos.models.dynamic_transition_model import *
 from dynamic_mos.models.transition_model import RobotTransitionModel
+from dynamic_mos.models.observation_model import ObjectObservationModel
 from dynamic_mos.domain.state import *
-from dynamic_mos.util import *
+from dynamic_mos.utils import *
 from dynamic_mos.agent.belief import MosOOBelief
 
 class AdversarialRewardModel(pomdp_py.RewardModel):
@@ -105,7 +106,7 @@ class AdversarialTransitionModel(pomdp_py.OOTransitionModel):
 
 class AdversarialPolicyModel(pomdp_py.RolloutPolicy):
     def __init__(self, object_id, motion_policy, action_prior=None):
-        self.motion_policy = motion_policies
+        self.motion_policy = motion_policy
         self.object_id = object_id
         self.action_prior = action_prior
         
@@ -195,7 +196,8 @@ class AdversarialTarget(pomdp_py.Agent):
         policy_model = AdversarialPolicyModel(object_id, transition_model.motion_policy,
                                               action_prior=kwargs.get("action_prior", None))
 
-        init_belief = self._init_hist_belief(prior, init_object_state)
+        init_belief = self._init_hist_belief(kwargs.get("prior", {}),
+                                             init_object_state)
         super().__init__(init_belief, policy_model,
                          transition_model=transition_model,
                          observation_model=observation_model,
@@ -204,7 +206,7 @@ class AdversarialTarget(pomdp_py.Agent):
 
     def _init_hist_belief(self, prior, init_object_state):
         """Initialize histogram belief"""
-        if agent.cur_belief is not None:
+        if self.cur_belief is not None:
             raise ValueError("Agent already has initial belief!")
         
         oo_hists = {self._object_id: pomdp_py.Histogram({init_object_state:1.0})}

@@ -1,6 +1,7 @@
 import pomdp_py
 from adversarial_mos.adversary.agent import *
 from dynamic_mos.models.transition_model import *
+from dynamic_mos.models.reward_model import *
 
 class CompositeAction(pomdp_py.Action):
     def __init__(self, actions):
@@ -19,6 +20,7 @@ class AdversarialMosEnvironment(pomdp_py.Environment):
                  sensor, grid_map, motion_actions,
                  look_after_move=True, big=100, small=1):
 
+        self.grid_map = grid_map
         self._robot_id = robot_id
         obstacles = set({}) if self.grid_map is None else set(grid_map.obstacles.keys())
         self.target_objects = \

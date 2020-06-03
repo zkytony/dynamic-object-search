@@ -22,9 +22,9 @@ class ObjectState(pomdp_py.ObjectState):
     def __init__(self, objid, objclass, pose, time=-1):
         """If the object is static, then `time` is -1. Otherwise, `time`
         indicates the time step of the dynamic object."""
-        if objclass != "obstacle" and objclass != "target":
+        if objclass != "obstacle" and objclass != "target" and objclass != "robot":
             raise ValueError("Only allow object class to be"\
-                             "either 'target' or 'obstacle'."
+                             "either 'target' or 'obstacle' or 'robot'."
                              "Got %s" % objclass)
         super().__init__(objclass, {"pose":pose,
                                     "id":objid,

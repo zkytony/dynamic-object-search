@@ -180,6 +180,7 @@ def interpret(worldstr, motion_policies_dict={}):
             elif c.isupper():
                 # target object
                 objid = len(objects)
+                print("Object %s is assigned id %d" % (c, objid))
                 objects[objid] = ObjectState(objid, "target", (x,y))
                 if c in motion_policies_dict:
                     if type(motion_policies_dict[c]) == list:
@@ -189,7 +190,7 @@ def interpret(worldstr, motion_policies_dict={}):
                     else:
                         raise ValueError("Invalid specification of motion policy for %s." % c)
                     objects[objid]["time"] = 0
-                print("Object %s is assigned id %d | %s" % (c, objid, str(motion_policies_dict[c])))
+                    print(str(motion_policies_dict[c]))
                 
             elif c.islower():
                 # robot

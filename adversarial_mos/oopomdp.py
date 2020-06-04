@@ -7,6 +7,7 @@ from dynamic_mos.env.visual import *
 from dynamic_mos.domain.action import *
 from dynamic_mos.models.components.motion_policy import *
 from dynamic_mos.experiments.world_types import *
+from dynamic_mos.experiments.baselines.handcraft import *
 from adversarial_mos import *
 from dynamic_mos.dynamic_worlds import *
 import concurrent.futures
@@ -29,11 +30,11 @@ class ParallelPlanner(pomdp_py.Planner):
 
     def plan(self):
         # Plan with all planners
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     results = executor.map(self._plan_single, self._planners.keys())
-        results = []
-        for agent_id in self._planners:
-            results.append(self._plan_single(agent_id))
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(self._plan_single, self._planners.keys())
+        # results = []
+        # for agent_id in self._planners:
+        #     results.append(self._plan_single(agent_id))
 
         # Return a composite action
         actions = {}
@@ -44,8 +45,13 @@ class ParallelPlanner(pomdp_py.Planner):
 
     def _plan_single(self, agent_id):
         action = self._planners[agent_id].plan(self._agents[agent_id])
-        action_value = self._agents[agent_id].tree[action].value
-        return agent_id, action, action_value, self._agents[agent_id], self._planners[agent_id].last_num_sims
+        if isinstance(self._planners[agent_id], pomdp_py.POUCT):
+            action_value = self._agents[agent_id].tree[action].value
+            last_num_sims = self._planners[agent_id].last_num_sims
+        else:
+            action_value = 0
+            last_num_sims = 0
+        return agent_id, action, action_value, self._agents[agent_id], last_num_sims
 
     def _update_belief(self, tup):
         agent_id, action, observation, next_agent_state, agent_state = tup
@@ -86,20 +92,20 @@ class ParallelPlanner(pomdp_py.Planner):
         assert isinstance(real_action, CompositeAction)
         assert isinstance(real_observation, CompositeObservation)        
 
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     results = executor.map(
-        #         self._update_belief,
-        #         ((agent_id, real_action[agent_id], real_observation[agent_id],
-        #           next_state.object_states[agent_id], state.object_states[agent_id])
-        #          for agent_id in self._agents))
-        # for agent_id, belief in results:
-        #     self._agents[agent_id].set_belief(belief)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(
+                self._update_belief,
+                ((agent_id, real_action[agent_id], real_observation[agent_id],
+                  next_state.object_states[agent_id], state.object_states[agent_id])
+                 for agent_id in self._agents))
+        for agent_id, belief in results:
+            self._agents[agent_id].set_belief(belief)
             
-        for agent_id in self._agents:
-            self._update_belief((agent_id, real_action[agent_id],
-                                 real_observation[agent_id],
-                                 next_state.object_states[agent_id],
-                                 state.object_states[agent_id]))
+        # for agent_id in self._agents:
+        #     self._update_belief((agent_id, real_action[agent_id],
+        #                          real_observation[agent_id],
+        #                          next_state.object_states[agent_id],
+        #                          state.object_states[agent_id]))
         
         for agent_id in self._agents:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
@@ -219,6 +225,8 @@ class AdversarialTrial(Trial):
         planning_time=1.       # amount of time (s) to plan each step
         exploration_const=1000
         max_steps=150
+
+        searcher_type = "greedy"
         
         planners = {
             aid: pomdp_py.POUCT(max_depth=max_depth,
@@ -229,6 +237,12 @@ class AdversarialTrial(Trial):
                                   action_prior=agents[aid].policy_model.action_prior)
             for aid in agents
         }
+        if searcher_type == "greedy":
+            planners[robot_id] = GreedyPlanner(env.grid_map,
+                                               look_after_move=True)
+        if searcher_type == "random":
+            planners[robot_id] = RandomPlanner(env.grid_map,
+                                               look_after_move=True)
 
         ma_planner = ParallelPlanner(planners, agents, robot_id)
         

@@ -101,7 +101,14 @@ class AdversarialObservationModel(pomdp_py.ObservationModel):
         assert isinstance(observation, ObjectObservation)
         if observation.objid != self._robot_id:
             return 1e-9
-        if observation.pose != next_state.pose(self._robot_id):
+
+        if isinstance(next_state, ObjectState):
+            assert next_state.objclass == "robot"
+            object_pose = next_state.pose
+        else:
+            object_pose = next_state.object_poses(self._robot_id)
+        
+        if observation.pose != object_pose:
             return 1e-9
         else:
             return 1.0 - 1e-9

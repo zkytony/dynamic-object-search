@@ -254,7 +254,7 @@ class AdversarialTrial(Trial):
             reward = env.state_transition(comp_action, execute=True)
 
             # receive observation
-            import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
             comp_observation = CompositeObservation({
                 agent_id:
                 env.provide_observation(
@@ -266,47 +266,47 @@ class AdversarialTrial(Trial):
             # Update
             ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
             
-        #     _total_reward += reward
+            _total_reward += reward
 
-        #     # Record find action count
-        #     if isinstance(comp_action[robot_id], FindAction):
-        #         _find_actions_count += 1
+            # Record find action count
+            if isinstance(comp_action[robot_id], FindAction):
+                _find_actions_count += 1
                 
-        #     # Info
-        #     _step_info = "Step %d:  action: %s   reward: %.3f  cum_reward: %.3f"\
-        #         % (i+1, str(comp_action[robot_id]), reward, _total_reward)
-        #     if isinstance(ma_planner.planners[robot_id], pomdp_py.POUCT):
-        #         _step_info += "   NumSims: %d" % ma_planner.planners[robot_id].last_num_sims
-        #     if logging:
-        #         trial_obj.log_event(Event("Trial %s | %s" % (trial_obj.name, _step_info)))
-        #     else:
-        #         print(_step_info)
+            # Info
+            _step_info = "Step %d:  action: %s   reward: %.3f  cum_reward: %.3f"\
+                % (i+1, str(comp_action[robot_id]), reward, _total_reward)
+            if isinstance(ma_planner.planners[robot_id], pomdp_py.POUCT):
+                _step_info += "   NumSims: %d" % ma_planner.planners[robot_id].last_num_sims
+            if logging:
+                trial_obj.log_event(Event("Trial %s | %s" % (trial_obj.name, _step_info)))
+            else:
+                print(_step_info)
 
-        #     # Visualize
-        #     robot_pose = env.state.object_states[robot_id].pose
-        #     viz_observation = MosOOObservation({})
-        #     if isinstance(comp_action[robot_id], LookAction)\
-        #        or isinstance(comp_action[robot_id], FindAction):
-        #         viz_observation = \
-        #             agents[robot_id].sensor.observe(robot_pose,
-        #                                             env.state)
-        #     viz.update(robot_id,
-        #                comp_action[robot_id],
-        #                comp_observation[robot_id],
-        #                viz_observation,
-        #                agents[list(target_objects)[0]].cur_belief)
-        #     img = viz.on_render()
+            # Visualize
+            robot_pose = env.state.object_states[robot_id].pose
+            viz_observation = MosOOObservation({})
+            if isinstance(comp_action[robot_id], LookAction)\
+               or isinstance(comp_action[robot_id], FindAction):
+                viz_observation = \
+                    agents[robot_id].sensor.observe(robot_pose,
+                                                    env.state)
+            viz.update(robot_id,
+                       comp_action[robot_id],
+                       comp_observation[robot_id],
+                       viz_observation,
+                       agents[list(target_objects)[0]].cur_belief)
+            img = viz.on_render()
 
-        #     # Termination check
-        #     if set(env.state.object_states[robot_id].objects_found)\
-        #        == env.target_objects:
-        #         if logging:
-        #             trial_obj.log_event(Event("Trial %s | Task finished!\n\n" % (trial_obj.name)))
-        #         break
-        #     if _find_actions_count >= len(env.target_objects):
-        #         if logging:
-        #             trial_obj.log_event(Event("Trial %s | Task ended; Used up Find actions.\n\n" % (trial_obj.name)))
-        #         break
+            # Termination check
+            if set(env.state.object_states[robot_id].objects_found)\
+               == env.target_objects:
+                if logging:
+                    trial_obj.log_event(Event("Trial %s | Task finished!\n\n" % (trial_obj.name)))
+                break
+            if _find_actions_count >= len(env.target_objects):
+                if logging:
+                    trial_obj.log_event(Event("Trial %s | Task ended; Used up Find actions.\n\n" % (trial_obj.name)))
+                break
         
 if __name__ == "__main__":
     trial = AdversarialTrial("a_1_b", {})

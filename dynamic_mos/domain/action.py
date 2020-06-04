@@ -16,6 +16,7 @@ then the Look action could be dropped. This is optional behavior.
 """
 import pomdp_py
 import math
+import copy
 
 ###### Actions ######
 class Action(pomdp_py.Action):
@@ -88,26 +89,30 @@ class FindAction(Action):
 Look = LookAction()
 Find = FindAction()
 
+MoveEast = MotionAction(MotionAction.EAST, scheme="xy",
+                        motion_name="East", distance_cost=STEP_SIZE)
+MoveWest = MotionAction(MotionAction.WEST, scheme="xy",
+                        motion_name="West", distance_cost=STEP_SIZE)
+MoveNorth = MotionAction(MotionAction.NORTH, scheme="xy",
+                         motion_name="North", distance_cost=STEP_SIZE)
+MoveSouth = MotionAction(MotionAction.SOUTH, scheme="xy",
+                         motion_name="South", distance_cost=STEP_SIZE)
+MoveForward = MotionAction(MotionAction.FORWARD, scheme="vw",
+                           motion_name="Forward", distance_cost=STEP_SIZE)
+MoveBackward = MotionAction(MotionAction.BACKWARD, scheme="vw",
+                            motion_name="Backward", distance_cost=STEP_SIZE)
+MoveLeft = MotionAction(MotionAction.LEFT, scheme="vw",
+                        motion_name="TurnLeft", distance_cost=STEP_SIZE)
+MoveRight = MotionAction(MotionAction.RIGHT, scheme="vw",
+                         motion_name="TurnRight", distance_cost=STEP_SIZE)
+
 def create_motion_actions(scheme="xy", distance_cost=STEP_SIZE):
     if scheme == "xy":
-        MoveEast = MotionAction(MotionAction.EAST, scheme="xy",
-                                motion_name="East", distance_cost=distance_cost)
-        MoveWest = MotionAction(MotionAction.WEST, scheme="xy",
-                                motion_name="West", distance_cost=distance_cost)
-        MoveNorth = MotionAction(MotionAction.NORTH, scheme="xy",
-                                 motion_name="North", distance_cost=distance_cost)
-        MoveSouth = MotionAction(MotionAction.SOUTH, scheme="xy",
-                                 motion_name="South", distance_cost=distance_cost)
-        return {MoveEast, MoveWest, MoveNorth, MoveSouth}
+        actions = copy.deepcopy({MoveEast, MoveWest, MoveNorth, MoveSouth})
     elif scheme == "vw":
-        MoveForward = MotionAction(MotionAction.FORWARD, scheme="vw",
-                                   motion_name="Forward", distance_cost=distance_cost)
-        MoveBackward = MotionAction(MotionAction.BACKWARD, scheme="vw",
-                                    motion_name="Backward", distance_cost=distance_cost)
-        MoveLeft = MotionAction(MotionAction.LEFT, scheme="vw",
-                                motion_name="TurnLeft", distance_cost=distance_cost)
-        MoveRight = MotionAction(MotionAction.RIGHT, scheme="vw",
-                                 motion_name="TurnRight", distance_cost=distance_cost)
-        return {MoveForward, MoveBackward, MoveLeft, MoveRight}
+        actions = copy.deepcopy({MoveForward, MoveBackward, MoveLeft, MoveRight})
     else:
         raise ValueError("motion scheme '%s' is invalid" % MOTION_SCHEME)
+    for a in actions:
+        a.distance_cost = distance_cost
+    return actions    

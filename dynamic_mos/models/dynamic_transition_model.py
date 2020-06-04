@@ -33,15 +33,25 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
     all other objects
     """
 
-    def __init__(self, objid, motion_policy, epsilon=1e-9):
+    def __init__(self, objid, motion_policy, epsilon=1e-9, robot_id=None):
+        """
+        robot_id identifies the intelligent agent (could be an adversarial agent, or the searcher)
+            It should be the thing that is searching for the object given by `objid`.
+            If not provided, then the default robot_id (i.e. the id of the searcher)
+            in a state will be used as the robot_id
+        """
         self._objid = objid
         self._motion_policy = motion_policy
         self._epsilon = epsilon
+        self._robot_id = robot_id
 
     def probability(self, next_object_state, state, action, robot_state=None):
         if isinstance(state, pomdp_py.OOState):
             object_state = state.object_states[self._objid]
-            robot_state = state.robot_state
+            if self._robot_id is None:
+                robot_state = state.robot_state
+            else:
+                robot_state = state.object_states[self._robot_id]
         else:
             assert isinstance(state, ObjectState)
             object_state = state
@@ -57,7 +67,10 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
     def sample(self, state, action, argmax=False, robot_state=None):
         if isinstance(state, pomdp_py.OOState):
             object_state = state.object_states[self._objid]
-            robot_state = state.robot_state
+            if self._robot_id is None:
+                robot_state = state.robot_state
+            else:
+                robot_state = state.object_states[self._robot_id]            
         else:
             assert isinstance(state, ObjectState)
             object_state = state

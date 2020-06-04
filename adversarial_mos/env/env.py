@@ -55,7 +55,7 @@ class AdversarialMosEnvironment(pomdp_py.Environment):
         # REFACTOR
         self.dynamic_object_ids = self.target_objects
         obstacles = set(grid_map.obstacles.keys())
-        
+
         tmodels = {}
         for objid in {*target_objects, robot_id}:
             if objid == robot_id:

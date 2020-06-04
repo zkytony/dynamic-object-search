@@ -254,9 +254,10 @@ class AdversarialPolicy(StochaisticPolicy):
         elif self._rule == "chase":
             # Here the object is actually chasing the robot (useful if
             # you want to use this to model a robot's policy (robot/object swap)
+            cur_dist = euclidean_dist(robot_pose, object_pose)
             for action in self._legal_actions[object_pose[:2]]:
                 next_dist = euclidean_dist(next_pose(object_pose[:2], action.motion), robot_pose)
-                if next_dist <= self._sensor_range*math.sqrt(2):
+                if next_dist <= cur_dist:
                     candidate_actions.append(action)
         else:
             raise ValueError("Unknown adversarial rule %s" % self._rule)
@@ -309,11 +310,16 @@ class AdversarialPolicy(StochaisticPolicy):
             next_object_pose = object_state.pose
 
         if isinstance(object_state, RobotState):
-            import pdb; pdb.set_trace()
+            # here is the adversarial agent
+            assert isinstance(robot_state, ObjectState)
+            time = robot_state.time + 1
+        else:
+            time = object_state.time + 1
+            
         return ObjectState(object_state["id"],
                            object_state.objclass,
                            next_object_pose,
-                           time=object_state.time+1)
+                           time=time)
 
 
 class AdverserialGoalPolicy(AdversarialPolicy, EpsilonGoalPolicy):

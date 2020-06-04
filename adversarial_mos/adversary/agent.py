@@ -5,6 +5,7 @@ from dynamic_mos.models.components.motion_policy import StochaisticPolicy, next_
 from dynamic_mos.models.dynamic_transition_model import *
 from dynamic_mos.models.transition_model import RobotTransitionModel
 from dynamic_mos.models.observation_model import ObjectObservationModel
+from dynamic_mos.domain.observation import *
 from dynamic_mos.domain.state import *
 from dynamic_mos.utils import *
 from dynamic_mos.agent.belief import MosOOBelief
@@ -80,6 +81,52 @@ class BasicMotionPolicy(StochaisticPolicy):
         next_object_state["pose"] = next_object_pose
         return next_object_state
 
+class AdversarialObservationModel(pomdp_py.ObservationModel):
+    def __init__(self, object_id, robot_id):
+        self._object_id = object_id
+        self._robot_id = robot_id
+    
+    def probability(self, observation, next_state, action, **kwargs):
+        """
+        probability(self, observation, next_state, action, **kwargs)
+        Returns the probability of :math:`\Pr(o|s',a)`.
+
+        Args:
+            observation (~pomdp_py.framework.basics.Observation): the observation :math:`o`
+            next_state (~pomdp_py.framework.basics.State): the next state :math:`s'`
+            action (~pomdp_py.framework.basics.Action): the action :math:`a`
+        Returns:
+            float: the probability :math:`\Pr(o|s',a)`
+        """
+        assert isinstance(observation, ObjectObservation)
+        if observation.objid != self._robot_id:
+            return 1e-9
+        if observation.pose != next_state.pose(self._robot_id):
+            return 1e-9
+        else:
+            return 1.0 - 1e-9
+    
+    def sample(self, next_state, action, **kwargs):
+        """sample(self, next_state, action, **kwargs)
+        Returns observation randomly sampled according to the
+        distribution of this observation model.
+
+        Args:
+            next_state (~pomdp_py.framework.basics.State): the next state :math:`s'`
+            action (~pomdp_py.framework.basics.Action): the action :math:`a`
+        Returns:
+            Observation: the observation :math:`o`
+        """
+        return ObjectObservation(self._object_id, next_state.pose(self._robot_id))
+        
+    
+    def argmax(self, next_state, action, **kwargs):
+        """
+        argmax(self, next_state, action, **kwargs)
+        Returns the most likely observation"""
+        return self.sample(next_state, action **kwargs)
+
+
     
 class AdversarialTransitionModel(pomdp_py.OOTransitionModel):
     def __init__(self, object_id, robot_id, grid_map, motion_policy):
@@ -90,6 +137,9 @@ class AdversarialTransitionModel(pomdp_py.OOTransitionModel):
         """
         assert motion_policy._object_id == object_id
         self.motion_policy = motion_policy
+        # From the adversarial object's perspective, the robot is a greedy
+        # agent, and the object itself has the dynamic agent transition model
+        # which simply moves the object around.
         transition_models = {
             object_id: DynamicAgentTransitionModel(object_id, self.motion_policy),
             robot_id: DynamicObjectTransitionModel(
@@ -97,7 +147,8 @@ class AdversarialTransitionModel(pomdp_py.OOTransitionModel):
                 AdversarialPolicy(grid_map, -1,
                                   pr_stay=1e-9,
                                   rule="chase",
-                                  motion_actions=motion_policy.motion_actions))}
+                                  motion_actions=motion_policy.motion_actions),
+                robot_id=object_id)}  # treating the object itself as the 'intelligent agent'
         self._object_id = object_id
         super().__init__(transition_models)
 
@@ -189,11 +240,12 @@ class AdversarialTarget(pomdp_py.Agent):
         transition_model = AdversarialTransitionModel(object_id, robot_id, grid_map, motion_policy)
 
         # The observation model observes the roboot
-        observation_model = ObjectObservationModel(robot_id, object_sensor,
-                                                   (self._grid_map.width, self._grid_map.length),
-                                                   sigma=kwargs.get("sigma", 0),
-                                                   epsilon=kwargs.get("epsilon", 1),
-                                                   look_after_move=True)
+        observation_model = AdversarialObservationModel(object_id, robot_id)
+        # observation_model = ObjectObservationModel(robot_id, object_sensor,
+        #                                            (self._grid_map.width, self._grid_map.length),
+        #                                            sigma=kwargs.get("sigma", 0),
+        #                                            epsilon=kwargs.get("epsilon", 1),
+        #                                            look_after_move=True)
 
         reward_model = AdversarialRewardModel(object_id, robot_id,
                                               big=kwargs.get("big", 100),

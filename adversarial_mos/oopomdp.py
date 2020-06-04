@@ -10,6 +10,7 @@ from dynamic_mos.experiments.world_types import *
 from adversarial_mos import *
 from dynamic_mos.dynamic_worlds import *
 import concurrent.futures
+random.seed(1000)
 
 
 class ParallelPlanner(pomdp_py.Planner):
@@ -28,11 +29,11 @@ class ParallelPlanner(pomdp_py.Planner):
 
     def plan(self):
         # Plan with all planners
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = executor.map(self._plan_single, self._planners.keys())
-        # results = []
-        # for agent_id in self._planners:
-        #     results.append(self._plan_single(agent_id))
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     results = executor.map(self._plan_single, self._planners.keys())
+        results = []
+        for agent_id in self._planners:
+            results.append(self._plan_single(agent_id))
 
         # Return a composite action
         actions = {}
@@ -113,7 +114,7 @@ class AdversarialTrial(Trial):
 
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_two_room_world(5,5,5,1)
+        mapstr, free_locations = create_two_room_world(3,3,2,1)
 
         robot_pose = random.sample(free_locations, 1)[0]
         objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
@@ -189,101 +190,120 @@ class AdversarialTrial(Trial):
                                                                               pr_stay=0.0,
                                                                               rule="avoid",
                                                                               motion_actions=motion_actions)
-                                                     for objid in objects})
+                                                     for objid in env.target_objects})
+
+        print(agents[2].observation_model.sample(env.state, None))
+        print(agents[5].observation_model.sample(env.state, None))
+        print(env.state.object_states[-114])
+        print(agents[-114].observation_model.sample(env.state, LookAction()))
+        print("BELIEF 2")
+        print(agents[2].belief.mpe())
+        print("BELIEF 5")
+        print(agents[5].belief.mpe())
+        print("BELIEF robot")
+        print(agents[-114].belief.mpe())
+        print("T robot")
+        print(agents[-114].transition_model.sample(env.state, MoveEast))
+        print(agents[-114].transition_model.sample(env.state, MoveWest))
+        print(agents[-114].transition_model.sample(env.state, MoveWest))
+        print("T 2")
+        import pdb; pdb.set_trace()
+        print(agents[2].transition_model.sample(env.state, MoveEast))
         
-        # solve
-        max_depth=10  # planning horizon
-        discount_factor=0.99
-        planning_time=1.       # amount of time (s) to plan each step
-        exploration_const=1000
-        max_steps=150
         
-        planners = {
-            aid: pomdp_py.POUCT(max_depth=max_depth,
-                                  discount_factor=discount_factor,
-                                  planning_time=planning_time,
-                                  exploration_const=exploration_const,
-                                  rollout_policy=agents[aid].policy_model,   # agent's policy model is preferred
-                                  action_prior=agents[aid].policy_model.action_prior)
-            for aid in agents
-        }
-
-        ma_planner = ParallelPlanner(planners, agents, robot_id)
+        # # solve
+        # max_depth=10  # planning horizon
+        # discount_factor=0.99
+        # planning_time=1.       # amount of time (s) to plan each step
+        # exploration_const=1000
+        # max_steps=150
         
-        viz = MosViz(env, controllable=False)
-        if viz.on_init() == False:
-            raise Exception("Environment failed to initialize")
-        viz.update(robot_id,
-                   None,
-                   None,
-                   None,
-                   agents[robot_id].cur_belief)
-        viz.on_render()
+        # planners = {
+        #     aid: pomdp_py.POUCT(max_depth=max_depth,
+        #                           discount_factor=discount_factor,
+        #                           planning_time=planning_time,
+        #                           exploration_const=exploration_const,
+        #                           rollout_policy=agents[aid].policy_model,   # agent's policy model is preferred
+        #                           action_prior=agents[aid].policy_model.action_prior)
+        #     for aid in agents
+        # }
 
-        _find_actions_count = 0
-        _total_reward = 0  # total, undiscounted reward        
-        for i in range(max_steps):
+        # ma_planner = ParallelPlanner(planners, agents, robot_id)
+        
+        # viz = MosViz(env, controllable=False)
+        # if viz.on_init() == False:
+        #     raise Exception("Environment failed to initialize")
+        # viz.update(robot_id,
+        #            None,
+        #            None,
+        #            None,
+        #            agents[robot_id].cur_belief)
+        # viz.on_render()
 
-            # all planners plan in parallel
-            comp_action = ma_planner.plan()
+        # _find_actions_count = 0
+        # _total_reward = 0  # total, undiscounted reward        
+        # for i in range(max_steps):
 
-            # execute action
-            prev_state = copy.deepcopy(env.state)
-            reward = env.state_transition(comp_action, execute=True)
+        #     # all planners plan in parallel
+        #     comp_action = ma_planner.plan()
 
-            # receive observation
-            comp_observation = CompositeObservation({
-                agent_id:
-                env.provide_observation(
-                    ma_planner.agents[agent_id].observation_model,
-                    comp_action[agent_id])
-                for agent_id in ma_planner.agents
-            })
+        #     # execute action
+        #     prev_state = copy.deepcopy(env.state)
+        #     reward = env.state_transition(comp_action, execute=True)
 
-            # Update
-            ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
+        #     # receive observation
+        #     comp_observation = CompositeObservation({
+        #         agent_id:
+        #         env.provide_observation(
+        #             ma_planner.agents[agent_id].observation_model,
+        #             comp_action[agent_id])
+        #         for agent_id in ma_planner.agents
+        #     })
+
+        #     # Update
+        #     ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
             
-            _total_reward += reward
+        #     _total_reward += reward
 
-            # Record find action count
-            if isinstance(comp_action[robot_id], FindAction):
-                _find_actions_count += 1
+        #     # Record find action count
+        #     if isinstance(comp_action[robot_id], FindAction):
+        #         _find_actions_count += 1
                 
-            # Info
-            _step_info = "Step %d:  action: %s   reward: %.3f  cum_reward: %.3f"\
-                % (i+1, str(comp_action[robot_id]), reward, _total_reward)
-            if isinstance(ma_planner.planners[robot_id], pomdp_py.POUCT):
-                _step_info += "   NumSims: %d" % ma_planner.planners[robot_id].last_num_sims
-            if logging:
-                trial_obj.log_event(Event("Trial %s | %s" % (trial_obj.name, _step_info)))
-            else:
-                print(_step_info)
+        #     # Info
+        #     _step_info = "Step %d:  action: %s   reward: %.3f  cum_reward: %.3f"\
+        #         % (i+1, str(comp_action[robot_id]), reward, _total_reward)
+        #     if isinstance(ma_planner.planners[robot_id], pomdp_py.POUCT):
+        #         _step_info += "   NumSims: %d" % ma_planner.planners[robot_id].last_num_sims
+        #     if logging:
+        #         trial_obj.log_event(Event("Trial %s | %s" % (trial_obj.name, _step_info)))
+        #     else:
+        #         print(_step_info)
 
-            # Visualize
-            robot_pose = env.state.object_states[robot_id].pose
-            viz_observation = MosOOObservation({})
-            if isinstance(comp_action[robot_id], LookAction)\
-               or isinstance(comp_action[robot_id], FindAction):
-                viz_observation = \
-                    agents[robot_id].sensor.observe(robot_pose,
-                                                    env.state)
-            viz.update(robot_id,
-                       comp_action[robot_id],
-                       comp_observation[robot_id],
-                       viz_observation,
-                       agents[list(target_objects)[0]].cur_belief)
-            img = viz.on_render()
+        #     # Visualize
+        #     robot_pose = env.state.object_states[robot_id].pose
+        #     viz_observation = MosOOObservation({})
+        #     if isinstance(comp_action[robot_id], LookAction)\
+        #        or isinstance(comp_action[robot_id], FindAction):
+        #         viz_observation = \
+        #             agents[robot_id].sensor.observe(robot_pose,
+        #                                             env.state)
+        #     viz.update(robot_id,
+        #                comp_action[robot_id],
+        #                comp_observation[robot_id],
+        #                viz_observation,
+        #                agents[list(target_objects)[0]].cur_belief)
+        #     img = viz.on_render()
 
-            # Termination check
-            if set(env.state.object_states[robot_id].objects_found)\
-               == env.target_objects:
-                if logging:
-                    trial_obj.log_event(Event("Trial %s | Task finished!\n\n" % (trial_obj.name)))
-                break
-            if _find_actions_count >= len(env.target_objects):
-                if logging:
-                    trial_obj.log_event(Event("Trial %s | Task ended; Used up Find actions.\n\n" % (trial_obj.name)))
-                break
+        #     # Termination check
+        #     if set(env.state.object_states[robot_id].objects_found)\
+        #        == env.target_objects:
+        #         if logging:
+        #             trial_obj.log_event(Event("Trial %s | Task finished!\n\n" % (trial_obj.name)))
+        #         break
+        #     if _find_actions_count >= len(env.target_objects):
+        #         if logging:
+        #             trial_obj.log_event(Event("Trial %s | Task ended; Used up Find actions.\n\n" % (trial_obj.name)))
+        #         break
         
 if __name__ == "__main__":
     trial = AdversarialTrial("a_1_b", {})

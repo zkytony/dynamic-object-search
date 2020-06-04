@@ -20,11 +20,11 @@ class ObjectObservation(pomdp_py.Observation):
     NULL = None
     def __init__(self, objid, pose):
         self.objid = objid
-        if type(pose) == tuple and len(pose) == 2\
+        if type(pose) == tuple and (len(pose) == 2 or len(pose) == 3)\
            or pose == ObjectObservation.NULL:
             self.pose = pose
         else:
-            raise ValueError("Invalid observation %s for object"
+            raise ValueError("Invalid observation %s for object %d"
                              % (str(pose), objid))
     def __hash__(self):
         return hash((self.objid, self.pose))
@@ -34,6 +34,9 @@ class ObjectObservation(pomdp_py.Observation):
         else:
             return self.objid == other.objid\
                 and self.pose == other.pose
+
+    def __str__(self):
+        return ("ObjectObservation(%d, %s)" % (self.objid, str(self.pose)))
 
 class MosOOObservation(pomdp_py.OOObservation):
     """Observation for Mos that can be factored by objects;

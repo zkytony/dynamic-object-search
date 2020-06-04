@@ -39,6 +39,7 @@ class ParallelPlanner(pomdp_py.Planner):
         actions = {}
         for agent_id, action, action_value, agent, num_sims in results:
             actions[agent_id] = action
+            print("Agent %d: %s" % (agent_id, str(action)))
         return CompositeAction(actions)
 
     def _plan_single(self, agent_id):
@@ -85,20 +86,20 @@ class ParallelPlanner(pomdp_py.Planner):
         assert isinstance(real_action, CompositeAction)
         assert isinstance(real_observation, CompositeObservation)        
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = executor.map(
-                self._update_belief,
-                ((agent_id, real_action[agent_id], real_observation[agent_id],
-                  next_state.object_states[agent_id], state.object_states[agent_id])
-                 for agent_id in self._agents))
-
-        for agent_id, belief in results:
-            self._agents[agent_id].set_belief(belief)
-        # for agent_id in self._agents:
-        #     self._update_belief((agent_id, real_action[agent_id],
-        #                          real_observation[agent_id],
-        #                          next_state.object_states[agent_id],
-        #                          state.object_states[agent_id]))
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     results = executor.map(
+        #         self._update_belief,
+        #         ((agent_id, real_action[agent_id], real_observation[agent_id],
+        #           next_state.object_states[agent_id], state.object_states[agent_id])
+        #          for agent_id in self._agents))
+        # for agent_id, belief in results:
+        #     self._agents[agent_id].set_belief(belief)
+            
+        for agent_id in self._agents:
+            self._update_belief((agent_id, real_action[agent_id],
+                                 real_observation[agent_id],
+                                 next_state.object_states[agent_id],
+                                 state.object_states[agent_id]))
         
         for agent_id in self._agents:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
@@ -193,75 +194,77 @@ class AdversarialTrial(Trial):
                                                      for objid in env.target_objects})
 
         print(agents[2].observation_model.sample(env.state, None))
-        print(agents[5].observation_model.sample(env.state, None))
-        print(env.state.object_states[-114])
-        print(agents[-114].observation_model.sample(env.state, LookAction()))
-        print("BELIEF 2")
-        print(agents[2].belief.mpe())
-        print("BELIEF 5")
-        print(agents[5].belief.mpe())
-        print("BELIEF robot")
-        print(agents[-114].belief.mpe())
-        print("T robot")
-        print(agents[-114].transition_model.sample(env.state, MoveEast))
-        print(agents[-114].transition_model.sample(env.state, MoveWest))
-        print(agents[-114].transition_model.sample(env.state, MoveWest))
-        print("T 2")
-        import pdb; pdb.set_trace()
-        print(agents[2].transition_model.sample(env.state, MoveEast))
+        # print(agents[5].observation_model.sample(env.state, None))
+        # print(env.state.object_states[-114])
+        # print(agents[-114].observation_model.sample(env.state, LookAction()))
+        # print("BELIEF 2")
+        # print(agents[2].belief.mpe())
+        # print("BELIEF 5")
+        # print(agents[5].belief.mpe())
+        # print("BELIEF robot")
+        # print(agents[-114].belief.mpe())
+        # print("T robot")
+        # print(agents[-114].transition_model.sample(env.state, MoveEast))
+        # print(agents[-114].transition_model.sample(env.state, MoveWest))
+        # print(agents[-114].transition_model.sample(env.state, MoveWest))
+        # print("T 2")
+        # import pdb; pdb.set_trace()
+        # print(agents[2].transition_model.sample(env.state, MoveEast))
+        # print(agents[5].transition_model.sample(env.state, MoveEast))
         
         
-        # # solve
-        # max_depth=10  # planning horizon
-        # discount_factor=0.99
-        # planning_time=1.       # amount of time (s) to plan each step
-        # exploration_const=1000
-        # max_steps=150
+        # solve
+        max_depth=10  # planning horizon
+        discount_factor=0.99
+        planning_time=1.       # amount of time (s) to plan each step
+        exploration_const=1000
+        max_steps=150
         
-        # planners = {
-        #     aid: pomdp_py.POUCT(max_depth=max_depth,
-        #                           discount_factor=discount_factor,
-        #                           planning_time=planning_time,
-        #                           exploration_const=exploration_const,
-        #                           rollout_policy=agents[aid].policy_model,   # agent's policy model is preferred
-        #                           action_prior=agents[aid].policy_model.action_prior)
-        #     for aid in agents
-        # }
+        planners = {
+            aid: pomdp_py.POUCT(max_depth=max_depth,
+                                  discount_factor=discount_factor,
+                                  planning_time=planning_time,
+                                  exploration_const=exploration_const,
+                                  rollout_policy=agents[aid].policy_model,   # agent's policy model is preferred
+                                  action_prior=agents[aid].policy_model.action_prior)
+            for aid in agents
+        }
 
-        # ma_planner = ParallelPlanner(planners, agents, robot_id)
+        ma_planner = ParallelPlanner(planners, agents, robot_id)
         
-        # viz = MosViz(env, controllable=False)
-        # if viz.on_init() == False:
-        #     raise Exception("Environment failed to initialize")
-        # viz.update(robot_id,
-        #            None,
-        #            None,
-        #            None,
-        #            agents[robot_id].cur_belief)
-        # viz.on_render()
+        viz = MosViz(env, controllable=False)
+        if viz.on_init() == False:
+            raise Exception("Environment failed to initialize")
+        viz.update(robot_id,
+                   None,
+                   None,
+                   None,
+                   agents[robot_id].cur_belief)
+        viz.on_render()
 
-        # _find_actions_count = 0
-        # _total_reward = 0  # total, undiscounted reward        
-        # for i in range(max_steps):
+        _find_actions_count = 0
+        _total_reward = 0  # total, undiscounted reward        
+        for i in range(max_steps):
 
-        #     # all planners plan in parallel
-        #     comp_action = ma_planner.plan()
+            # all planners plan in parallel
+            comp_action = ma_planner.plan()
 
-        #     # execute action
-        #     prev_state = copy.deepcopy(env.state)
-        #     reward = env.state_transition(comp_action, execute=True)
+            # execute action
+            prev_state = copy.deepcopy(env.state)
+            reward = env.state_transition(comp_action, execute=True)
 
-        #     # receive observation
-        #     comp_observation = CompositeObservation({
-        #         agent_id:
-        #         env.provide_observation(
-        #             ma_planner.agents[agent_id].observation_model,
-        #             comp_action[agent_id])
-        #         for agent_id in ma_planner.agents
-        #     })
+            # receive observation
+            import pdb; pdb.set_trace()
+            comp_observation = CompositeObservation({
+                agent_id:
+                env.provide_observation(
+                    ma_planner.agents[agent_id].observation_model,
+                    comp_action[agent_id])
+                for agent_id in ma_planner.agents
+            })
 
-        #     # Update
-        #     ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
+            # Update
+            ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
             
         #     _total_reward += reward
 

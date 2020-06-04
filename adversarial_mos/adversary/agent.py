@@ -117,7 +117,7 @@ class AdversarialObservationModel(pomdp_py.ObservationModel):
         Returns:
             Observation: the observation :math:`o`
         """
-        return ObjectObservation(self._object_id, next_state.pose(self._robot_id))
+        return ObjectObservation(self._robot_id, next_state.pose(self._robot_id))
         
     
     def argmax(self, next_state, action, **kwargs):

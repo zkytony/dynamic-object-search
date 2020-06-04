@@ -38,6 +38,9 @@ class ObjectObservation(pomdp_py.Observation):
     def __str__(self):
         return ("ObjectObservation(%d, %s)" % (self.objid, str(self.pose)))
 
+    def __repr__(self):
+        return str(self)
+
 class MosOOObservation(pomdp_py.OOObservation):
     """Observation for Mos that can be factored by objects;
     thus this is an OOObservation."""

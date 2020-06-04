@@ -33,6 +33,16 @@ class CompositeObservation(pomdp_py.Observation):
         else:
             return None
 
+    def __str__(self):
+        res = "CompositeObservation\n"
+        for objid in self.observations:
+            res += "  %d: %s\n" % (objid, str(self.observations[objid]))
+        return res
+
+    def __repr__(self):
+        return "CompositeObservation(%s)" % str(self.observations)
+        
+
 def compute_target_objects(grid_map, init_state):
     obstacles = set(grid_map.obstacles.keys())
     target_objects = \

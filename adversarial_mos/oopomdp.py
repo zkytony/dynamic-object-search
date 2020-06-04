@@ -19,6 +19,10 @@ class ParallelPlanner(pomdp_py.Planner):
         self._robot_id = robot_id
 
     @property
+    def planners(self):
+        return self._planners
+
+    @property
     def agents(self):
         return self._agents
 
@@ -42,47 +46,53 @@ class ParallelPlanner(pomdp_py.Planner):
         return agent_id, action, action_value, self._agents[agent_id], self._planners[agent_id].last_num_sims
 
     def _update_belief(self, tup):
-        agent_id, action, observation, next_agent_state = tup
+        agent_id, action, observation, next_agent_state, agent_state = tup
         agent = self._agents[agent_id]
         for objid in agent.cur_belief.object_beliefs:
-            belief_obj = agent.cur_belief.object_belief(objid)
-            if isinstance(agent.observation_model, pomdp_py.OOObservationModel):
-                obj_observation = observation.for_obj(objid)
-                observation_model = agent.observation_model[objid]
-            else:
-                assert observation.objid == self._robot_id
-                obj_observation = observation
-                observation_model = agent.observation_model
-
-            next_state_space = set({})
-            for state in belief_obj:
-                next_state = copy.deepcopy(state)
-                if "time" in next_state.attributes:
-                    next_state["time"] = state["time"] + 1
-                next_state_space.add(next_state)         
-            
             if objid == agent_id:
                 new_belief = pomdp_py.Histogram({next_agent_state: 1.0})
             else:
-                new_belief = pomdp_py.update_histogram_belief(
-                    belief_obj,
-                    action, obj_observation,
-                    observation_model,
-                    agent.transition_model[objid],
-                    next_state_space=next_state_space,
-                    oargs={"next_robot_state": next_agent_state})
-                
+                belief_obj = agent.cur_belief.object_belief(objid)
+                if isinstance(agent.observation_model, pomdp_py.OOObservationModel):
+                    obj_observation = observation.for_obj(objid)
+                    observation_model = agent.observation_model[objid]
+                else:
+                    assert observation.objid == self._robot_id
+                    obj_observation = observation
+                    observation_model = agent.observation_model
+
+                next_state_space = set({})
+                for state in belief_obj:
+                    next_state = copy.deepcopy(state)
+                    if "time" in next_state.attributes:
+                        next_state["time"] = state["time"] + 1
+                    next_state_space.add(next_state)         
+
+                    new_belief = pomdp_py.update_histogram_belief(
+                        belief_obj,
+                        action, obj_observation,
+                        observation_model,
+                        agent.transition_model[objid],
+                        next_state_space=next_state_space,
+                        targs={"robot_state": agent_state},
+                        oargs={"next_robot_state": next_agent_state})
+
             agent.cur_belief.set_object_belief(objid, new_belief)
             
-    def update(self, real_action, real_observation, next_state):
+    def update(self, real_action, real_observation, next_state, state):
         assert isinstance(real_action, CompositeAction)
         assert isinstance(real_observation, CompositeObservation)        
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            executor.map(
-                self._update_belief,
-                ((agent_id, real_action[agent_id], real_observation[agent_id], next_state.object_states[agent_id])
-                 for agent_id in self._agents))
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     executor.map(
+        #         self._update_belief,
+        #         ((agent_id, real_action[agent_id], real_observation[agent_id], next_state.object_states[agent_id])
+        #          for agent_id in self._agents))
+        for agent_id in self._agents:
+            self._update_belief((agent_id, real_action[agent_id],
+                                 real_observation[agent_id],
+                                 next_state.object_states[agent_id],
+                                 state.object_states[agent_id]))
         
         for agent_id in self._agents:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
@@ -213,6 +223,7 @@ class AdversarialTrial(Trial):
             comp_action = ma_planner.plan()
 
             # execute action
+            prev_state = copy.deepcopy(env.state)
             reward = env.state_transition(comp_action, execute=True)
 
             # receive observation
@@ -225,7 +236,7 @@ class AdversarialTrial(Trial):
             })
 
             # Update
-            ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state))
+            ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
             
             _total_reward += reward
 
@@ -235,9 +246,9 @@ class AdversarialTrial(Trial):
                 
             # Info
             _step_info = "Step %d:  action: %s   reward: %.3f  cum_reward: %.3f"\
-                % (i+1, str(real_action[robot_id]), reward, _total_reward)            
-            if isinstance(planner, pomdp_py.POUCT):
-                _step_info += "   NumSims: %d" % planner.last_num_sims
+                % (i+1, str(comp_action[robot_id]), reward, _total_reward)
+            if isinstance(ma_planner.planners[robot_id], pomdp_py.POUCT):
+                _step_info += "   NumSims: %d" % ma_planner.planners[robot_id].last_num_sims
             if logging:
                 trial_obj.log_event(Event("Trial %s | %s" % (trial_obj.name, _step_info)))
             else:
@@ -246,15 +257,16 @@ class AdversarialTrial(Trial):
             # Visualize
             robot_pose = env.state.object_states[robot_id].pose
             viz_observation = MosOOObservation({})
-            if isinstance(real_action, LookAction) or isinstance(real_action, FindAction):
+            if isinstance(comp_action[robot_id], LookAction)\
+               or isinstance(comp_action[robot_id], FindAction):
                 viz_observation = \
-                    env.sensors[robot_id].observe(robot_pose,
-                                                  env.state)
+                    agents[robot_id].sensor.observe(robot_pose,
+                                                    env.state)
             viz.update(robot_id,
                        comp_action[robot_id],
                        comp_observation[robot_id],
                        viz_observation,
-                       robot.cur_belief)
+                       agents[robot_id].cur_belief)
             img = viz.on_render()
 
             # Termination check

@@ -181,7 +181,7 @@ class ObjectObservationModel(pomdp_py.ObservationModel):
     def _sample_zi(self, event, next_state, argmax=False):
         if event == "A":
             object_true_pose = next_state.object_pose(self._objid)
-            gaussian =  pomdp_py.Gaussian(list(object_true_pose),
+            gaussian =  pomdp_py.Gaussian(list(object_true_pose[:2]),
                                           [[self.sigma**2, 0],
                                            [0, self.sigma**2]])
             if not argmax:

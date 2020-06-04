@@ -59,15 +59,11 @@ class AdversarialMosEnvironment(pomdp_py.Environment):
         tmodels = {}
         for objid in {*target_objects, robot_id}:
             if objid == robot_id:
-                t = MosTransitionModel((grid_map.width, grid_map.length),
-                                       {robot_id: sensor},
-                                       obstacles,
-                                       look_after_move=look_after_move)
+                t = RobotTransitionModel(sensor,
+                                         (grid_map.width, grid_map.length),
+                                         look_after_move=look_after_move)
             else:
-                t = AdversarialTransitionModel(objid,
-                                               robot_id,
-                                               grid_map,
-                                               motion_policies[objid])
+                t = DynamicAgentTransitionModel(objid, motion_policies[objid])
             tmodels[objid] = t
         transition_model = pomdp_py.OOTransitionModel(tmodels)            
 

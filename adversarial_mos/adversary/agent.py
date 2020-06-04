@@ -69,10 +69,12 @@ class BasicMotionPolicy(StochaisticPolicy):
 
     def random(self, state, action):
         """Given MosOOState, return ObjectState"""
+        next_object_state = copy.deepcopy(state.object_states[self._object_id])        
         if action not in self._legal_actions[state.object_pose(self._object_id)]:
-            raise ValueError("Action %s cannot be taken in state %s" % (str(action), str(state)))
+            # raise ValueError("Action %s cannot be taken in state %s" % (str(action), str(state)))
+            # Action is not lega. Does not move.
+            return next_object_state
 
-        next_object_state = copy.deepcopy(state.object_states[self._object_id])
         cur_object_pose = state.pose(self._object_id)
         next_object_pose = next_pose(cur_object_pose, action.motion)
         next_object_state["pose"] = next_object_pose
@@ -88,13 +90,14 @@ class AdversarialTransitionModel(pomdp_py.OOTransitionModel):
         """
         assert motion_policy._object_id == object_id
         self.motion_policy = motion_policy
-        transition_models = {object_id: DynamicAgentTransitionModel(object_id, self.motion_policy),
-                             robot_id: DynamicObjectTransitionModel(
-                                 robot_id,
-                                 AdversarialPolicy(grid_map, -1,
-                                                   pr_stay=1e-9,
-                                                   rule="chase",
-                                                   motion_actions=motion_policy.motion_actions))}
+        transition_models = {
+            object_id: DynamicAgentTransitionModel(object_id, self.motion_policy),
+            robot_id: DynamicObjectTransitionModel(
+                robot_id,
+                AdversarialPolicy(grid_map, -1,
+                                  pr_stay=1e-9,
+                                  rule="chase",
+                                  motion_actions=motion_policy.motion_actions))}
         self._object_id = object_id
         super().__init__(transition_models)
 

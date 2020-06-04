@@ -307,6 +307,9 @@ class AdversarialPolicy(StochaisticPolicy):
         else:
             # stay
             next_object_pose = object_state.pose
+
+        if isinstance(object_state, RobotState):
+            import pdb; pdb.set_trace()
         return ObjectState(object_state["id"],
                            object_state.objclass,
                            next_object_pose,

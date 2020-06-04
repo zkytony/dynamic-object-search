@@ -28,11 +28,11 @@ class ParallelPlanner(pomdp_py.Planner):
 
     def plan(self):
         # Plan with all planners
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-            # results = executor.map(self._plan_single, self._planners.keys())
-        results = []
-        for agent_id in self._planners:
-            results.append(self._plan_single(agent_id))
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(self._plan_single, self._planners.keys())
+        # results = []
+        # for agent_id in self._planners:
+        #     results.append(self._plan_single(agent_id))
 
         # Return a composite action
         actions = {}
@@ -78,21 +78,26 @@ class ParallelPlanner(pomdp_py.Planner):
                         oargs={"next_robot_state": next_agent_state})
 
             agent.cur_belief.set_object_belief(objid, new_belief)
+        return (agent_id, agent.cur_belief)
             
     def update(self, real_action, real_observation, next_state, state):
         assert isinstance(real_action, CompositeAction)
         assert isinstance(real_observation, CompositeObservation)        
 
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     executor.map(
-        #         self._update_belief,
-        #         ((agent_id, real_action[agent_id], real_observation[agent_id], next_state.object_states[agent_id])
-        #          for agent_id in self._agents))
-        for agent_id in self._agents:
-            self._update_belief((agent_id, real_action[agent_id],
-                                 real_observation[agent_id],
-                                 next_state.object_states[agent_id],
-                                 state.object_states[agent_id]))
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(
+                self._update_belief,
+                ((agent_id, real_action[agent_id], real_observation[agent_id],
+                  next_state.object_states[agent_id], state.object_states[agent_id])
+                 for agent_id in self._agents))
+
+        for agent_id, belief in results:
+            self._agents[agent_id].set_belief(belief)
+        # for agent_id in self._agents:
+        #     self._update_belief((agent_id, real_action[agent_id],
+        #                          real_observation[agent_id],
+        #                          next_state.object_states[agent_id],
+        #                          state.object_states[agent_id]))
         
         for agent_id in self._agents:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
@@ -266,7 +271,7 @@ class AdversarialTrial(Trial):
                        comp_action[robot_id],
                        comp_observation[robot_id],
                        viz_observation,
-                       agents[robot_id].cur_belief)
+                       agents[list(target_objects)[0]].cur_belief)
             img = viz.on_render()
 
             # Termination check

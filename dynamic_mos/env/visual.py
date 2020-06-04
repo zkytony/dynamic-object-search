@@ -60,6 +60,9 @@ class MosViz:
         for i, objid in enumerate(sorted(env.target_objects)):
             colors[objid] = object_color(objid, i)
             print("Object %d is assigned color %s" % (objid, colors[objid]))
+        for i, robot_id in enumerate(sorted(env.robot_ids)):
+            colors[robot_id] = object_color(robot_id, i)
+            print("Robot %d is assigned color %s" % (robot_id, colors[robot_id]))
         random.seed()                    
         self._target_colors = colors
 

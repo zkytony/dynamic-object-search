@@ -29,7 +29,7 @@ class ParallelPlanner(pomdp_py.Planner):
         return self._agents
 
     def plan(self):
-        # Plan with all planners
+        # # Plan with all planners
         with concurrent.futures.ProcessPoolExecutor() as executor:
             results = executor.map(self._plan_single, self._planners.keys())
         # results = []
@@ -109,6 +109,7 @@ class ParallelPlanner(pomdp_py.Planner):
         
         for agent_id in self._agents:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
+            self._planners[agent_id].update(self._agents[agent_id], real_action[agent_id], real_observation[agent_id])            
 
 
 class AdversarialTrial(Trial):
@@ -121,7 +122,7 @@ class AdversarialTrial(Trial):
 
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_two_room_world(3,3,2,1)
+        mapstr, free_locations = create_two_room_world(4,4,3,1)
 
         robot_pose = random.sample(free_locations, 1)[0]
         objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
@@ -133,7 +134,7 @@ class AdversarialTrial(Trial):
                                 "D": objD_pose,
                                 "E": objE_pose})
         
-        sensorstr = make_laser_sensor(90, (1, 3), 0.5, False)
+        sensorstr = make_laser_sensor(90, (1, 2), 0.5, False)
         worldstr = equip_sensors(mapstr, {robot_char: sensorstr})
         big = 100
         small = 1
@@ -190,6 +191,7 @@ class AdversarialTrial(Trial):
                                     sensors[robot_id],
                                     grid_map,
                                     env.target_objects,
+                                    look_after_move=True,
                                     action_prior = DynamicMosActionPrior(robot_id, grid_map,
                                                                          10, big, look_after_move=True),
                                     motion_policies={objid: AdversarialPolicy(grid_map,
@@ -199,7 +201,7 @@ class AdversarialTrial(Trial):
                                                                               motion_actions=motion_actions)
                                                      for objid in env.target_objects})
 
-        print(agents[2].observation_model.sample(env.state, None))
+        # print(agents[2].observation_model.sample(env.state, None))
         # print(agents[5].observation_model.sample(env.state, None))
         # print(env.state.object_states[-114])
         # print(agents[-114].observation_model.sample(env.state, LookAction()))
@@ -308,7 +310,7 @@ class AdversarialTrial(Trial):
                        comp_action[robot_id],
                        comp_observation[robot_id],
                        viz_observation,
-                       agents[list(target_objects)[0]].cur_belief)
+                       agents[robot_id].cur_belief)
             img = viz.on_render()
 
             # Termination check

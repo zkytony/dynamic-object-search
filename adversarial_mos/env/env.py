@@ -96,6 +96,8 @@ class AdversarialMosEnvironment(pomdp_py.Environment):
         for objid in self.state.object_states:
             if objid in self.transition_model.transition_models\
                and action[objid] is not None:
+                if objid in self.state.robot_state["objects_found"]:
+                    continue
                 next_object_state = self.transition_model[objid].sample(self.state, action[objid])
                 next_state.set_object_state(objid, next_object_state)
 

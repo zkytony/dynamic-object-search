@@ -61,37 +61,40 @@ class BasicMotionPolicy(StochaisticPolicy):
         if action not in legal_actions:
             return 1e-9
         else:
-            if next_pose(state.pose(next_object_state["id"]), action)\
+            if next_pose(state.pose(next_object_state["id"]), action.motion)\
                == next_object_state.pose:
                 return 1.0 - 1e-9
             else:
                 return 1e-9
 
     def random(self, state, action):
-        if action not in self._legal_actions[object_state.pose]:
+        """Given MosOOState, return ObjectState"""
+        if action not in self._legal_actions[state.object_pose(self._object_id)]:
             raise ValueError("Action %s cannot be taken in state %s" % (str(action), str(state)))
 
-        next_state = copy.deepcopy(state)
+        next_object_state = copy.deepcopy(state.object_states[self._object_id])
         cur_object_pose = state.pose(self._object_id)
-        next_object_pose = next_pose(cur_object_pose, action)
-        next_state.set_object_pose(self._object_id, next_object_pose)
-        return next_state
+        next_object_pose = next_pose(cur_object_pose, action.motion)
+        next_object_state["pose"] = next_object_pose
+        return next_object_state
 
     
 class AdversarialTransitionModel(pomdp_py.OOTransitionModel):
-    def __init__(self, object_id, robot_id, grid_map, motion_actions):
+    def __init__(self, object_id, robot_id, grid_map, motion_policy):
         """
         Args:
             motion_actions (list) Motion actions of the adversarial object
             robot_sensor (Sensor): sensor of the robot.
         """
-        self.motion_policy = BasicMotionPolicy(object_id, grid_map, motion_actions)
+        assert motion_policy._object_id == object_id
+        self.motion_policy = motion_policy
         transition_models = {object_id: DynamicAgentTransitionModel(object_id, self.motion_policy),
-                             robot_id: DynamicObjectTransitionModel(robot_id,
-                                                                    AdversarialPolicy(grid_map, -1,
-                                                                                      pr_stay=1e-9,
-                                                                                      rule="chase",
-                                                                                      motion_actions=motion_actions))}
+                             robot_id: DynamicObjectTransitionModel(
+                                 robot_id,
+                                 AdversarialPolicy(grid_map, -1,
+                                                   pr_stay=1e-9,
+                                                   rule="chase",
+                                                   motion_actions=motion_policy.motion_actions))}
         self._object_id = object_id
         super().__init__(transition_models)
 
@@ -132,11 +135,11 @@ class AdversarialPolicyModel(pomdp_py.RolloutPolicy):
 
 class AdversarialActionPrior(pomdp_py.ActionPrior):
     def __init__(self, object_id, robot_id, grid_map,
-                 num_visits_init, val_init, motion_actions):
+                 num_visits_init, val_init, motion_policy):
         self.object_id = object_id
         self.robot_id = robot_id
         self.grid_map = grid_map
-        self.motion_actions = motion_actions
+        self.motion_policy = motion_policy
         self.num_visits_init = num_visits_init
         self.val_init = val_init
 
@@ -145,8 +148,8 @@ class AdversarialActionPrior(pomdp_py.ActionPrior):
         cur_dist = euclidean_dist(state.pose(self.object_id),
                                   state.pose(self.robot_id))
         preferences = set()
-        for action in self.motion_actions:
-            next_object_pose = next_pose(state.pose(self.object_id), action)
+        for action in self.motion_policy.legal_actions[state.pose(self.object_id)]:
+            next_object_pose = next_pose(state.pose(self.object_id), action.motion)
             if next_object_pose not in self.grid_map.obstacle_poses:
                 next_dist = euclidean_dist(next_object_pose,
                                            state.pose(self.robot_id))
@@ -160,7 +163,7 @@ class AdversarialTarget(pomdp_py.Agent):
                  object_id,
                  init_object_state,
                  object_sensor,
-                 motion_actions,  # motion actions of the target
+                 motion_policy,  # motion actions of the target
                  grid_map,
                  robot_id,
                  **kwargs):
@@ -179,8 +182,8 @@ class AdversarialTarget(pomdp_py.Agent):
         self._object_sensor = object_sensor
         self._grid_map = grid_map
         self._robot_id = robot_id
-        
-        transition_model = AdversarialTransitionModel(object_id, robot_id, grid_map, motion_actions)
+
+        transition_model = AdversarialTransitionModel(object_id, robot_id, grid_map, motion_policy)
 
         # The observation model observes the roboot
         observation_model = ObjectObservationModel(robot_id, object_sensor,
@@ -237,5 +240,4 @@ class AdversarialTarget(pomdp_py.Agent):
         hist_belief = pomdp_py.Histogram(hist)
         oo_hists[self._robot_id] = hist_belief
         return MosOOBelief(self._robot_id, oo_hists)
-            
             

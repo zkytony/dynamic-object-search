@@ -97,7 +97,11 @@ class Laser2DSensor:
     def shoot_beam(self, robot_pose, point):
         """Shoots a beam from robot_pose at point. Returns the distance and bearing
         of the beame (i.e. the length and orientation of the beame)"""
-        rx, ry, rth = robot_pose
+        if len(robot_pose) == 2:
+            rx, ry = robot_pose
+            rth = 0
+        else:
+            rx, ry, rth = robot_pose
         dist = euclidean_dist(point, (rx,ry))
         bearing = (math.atan2(point[1] - ry, point[0] - rx) - rth) % (2*math.pi)  # bearing (i.e. orientation)
         return (dist, bearing)

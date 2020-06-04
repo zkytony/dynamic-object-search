@@ -13,23 +13,51 @@ class CompositeAction(pomdp_py.Action):
         else:
             return None
 
+    def __str__(self):
+        res = "CompositeAction\n"
+        for objid in self.actions:
+            res += "  %d: %s\n" % (objid, str(self.actions[objid]))
+        return res
+
+    def __repr__(self):
+        return "CompositeAction(%s)" % str(self.actions)
+    
+
+class CompositeObservation(pomdp_py.Observation):
+    def __init__(self, observations):
+        self.observations = observations
+
+    def __getitem__(self, objid):
+        if objid in self.observations:
+            return self.observations[objid]
+        else:
+            return None
+
+def compute_target_objects(grid_map, init_state):
+    obstacles = set(grid_map.obstacles.keys())
+    target_objects = \
+        {objid
+         for objid in set(init_state.object_states.keys()) - obstacles
+         if not isinstance(init_state.object_states[objid], RobotState)}
+    return target_objects
+
+
 class AdversarialMosEnvironment(pomdp_py.Environment):
 
     def __init__(self, init_state,
-                 robot_id,
-                 sensor, grid_map, motion_actions,
+                 robot_id, target_objects,
+                 sensor, grid_map, motion_policies,
                  look_after_move=True, big=100, small=1):
 
         self.grid_map = grid_map
         self._robot_id = robot_id
-        obstacles = set({}) if self.grid_map is None else set(grid_map.obstacles.keys())
-        self.target_objects = \
-            {objid
-             for objid in set(init_state.object_states.keys()) - obstacles
-             if not isinstance(init_state.object_states[objid], RobotState)}            
+        self.target_objects = target_objects
+        # REFACTOR
+        self.dynamic_object_ids = self.target_objects
+        obstacles = set(grid_map.obstacles.keys())
         
         tmodels = {}
-        for objid in init_state.object_states:
+        for objid in {*target_objects, robot_id}:
             if objid == robot_id:
                 t = MosTransitionModel((grid_map.width, grid_map.length),
                                        {robot_id: sensor},
@@ -39,7 +67,7 @@ class AdversarialMosEnvironment(pomdp_py.Environment):
                 t = AdversarialTransitionModel(objid,
                                                robot_id,
                                                grid_map,
-                                               motion_actions)
+                                               motion_policies[objid])
             tmodels[objid] = t
         transition_model = pomdp_py.OOTransitionModel(tmodels)            
 
@@ -48,11 +76,18 @@ class AdversarialMosEnvironment(pomdp_py.Environment):
         super().__init__(init_state,
                          transition_model,
                          reward_model)
-        
+
+        # For visualization
+        self.width, self.length = grid_map.width, grid_map.length
+
+    @property
+    def robot_ids(self):
+        # For visualization ... REFACTOR
+        return set({self._robot_id})
                  
     def state_transition(self, action, execute=True):
         next_state = copy.deepcopy(self.state)
-        for objid in self.state.object_ids:
+        for objid in self.state.object_states:
             if objid in self.transition_model.transition_models\
                and action[objid] is not None:
                 next_object_state = self.transition_model[objid].sample(self.state, action[objid])

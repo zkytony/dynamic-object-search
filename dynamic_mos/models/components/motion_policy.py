@@ -254,8 +254,8 @@ class AdversarialPolicy(StochaisticPolicy):
         elif self._rule == "chase":
             # Here the object is actually chasing the robot (useful if
             # you want to use this to model a robot's policy (robot/object swap)
-            for action in self._legal_actions[object_pose]:
-                next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
+            for action in self._legal_actions[object_pose[:2]]:
+                next_dist = euclidean_dist(next_pose(object_pose[:2], action.motion), robot_pose)
                 if next_dist <= self._sensor_range*math.sqrt(2):
                     candidate_actions.append(action)
         else:

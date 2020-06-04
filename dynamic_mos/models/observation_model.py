@@ -51,7 +51,7 @@ class MosObservationModel(pomdp_py.OOObservationModel):
     def sample(self, next_state, action, argmax=False, **kwargs):
         if not self._is_sensing(action):
             return MosOOObservation({})
-            
+
         factored_observations = super().sample(next_state, action, argmax=argmax)
         return MosOOObservation.merge(factored_observations, next_state)
 

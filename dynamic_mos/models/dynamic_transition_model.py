@@ -22,7 +22,8 @@ class DynamicAgentTransitionModel(pomdp_py.TransitionModel):
             sample_func = self._motion_policy.argmax
         else:
             sample_func = self._motion_policy.random
-        return sample_func(state, action)
+        next_state = sample_func(state, action)
+        return next_state
     
 
 class DynamicObjectTransitionModel(pomdp_py.TransitionModel):

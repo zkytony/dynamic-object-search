@@ -83,14 +83,14 @@ class ParallelPlanner(pomdp_py.Planner):
                         next_state["time"] = state["time"] + 1
                     next_state_space.add(next_state)         
 
-                    new_belief = pomdp_py.update_histogram_belief(
-                        belief_obj,
-                        action, obj_observation,
-                        observation_model,
-                        agent.transition_model[objid],
-                        next_state_space=next_state_space,
-                        targs={"robot_state": agent_state},
-                        oargs={"next_robot_state": next_agent_state})
+                new_belief = pomdp_py.update_histogram_belief(
+                    belief_obj,
+                    action, obj_observation,
+                    observation_model,
+                    agent.transition_model[objid],
+                    next_state_space=next_state_space,
+                    targs={"robot_state": agent_state},
+                    oargs={"next_robot_state": next_agent_state})
 
             agent.cur_belief.set_object_belief(objid, new_belief)
         return (agent_id, agent.cur_belief)
@@ -99,22 +99,22 @@ class ParallelPlanner(pomdp_py.Planner):
         assert isinstance(real_action, CompositeAction)
         assert isinstance(real_observation, CompositeObservation)        
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = executor.map(
-                self._update_belief,
-                ((agent_id, real_action[agent_id], real_observation[agent_id],
-                  next_state.object_states[agent_id], state.object_states[agent_id])
-                 for agent_id in self._agents))
-        for agent_id, belief in results:
-            # if agent_id != self._robot_id:
-            #     continue
-            self._agents[agent_id].set_belief(belief)
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     results = executor.map(
+        #         self._update_belief,
+        #         ((agent_id, real_action[agent_id], real_observation[agent_id],
+        #           next_state.object_states[agent_id], state.object_states[agent_id])
+        #          for agent_id in self._agents))
+        # for agent_id, belief in results:
+        #     # if agent_id != self._robot_id:
+        #     #     continue
+        #     self._agents[agent_id].set_belief(belief)
             
-        # for agent_id in self._agents:
-        #     self._update_belief((agent_id, real_action[agent_id],
-        #                          real_observation[agent_id],
-        #                          next_state.object_states[agent_id],
-        #                          state.object_states[agent_id]))
+        for agent_id in self._agents:
+            self._update_belief((agent_id, real_action[agent_id],
+                                 real_observation[agent_id],
+                                 next_state.object_states[agent_id],
+                                 state.object_states[agent_id]))
         
         for agent_id in self._agents:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
@@ -128,10 +128,10 @@ class AdversarialTrial(Trial):
 
 
     def run(self, logging=False):
-
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_free_world(3,3) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        # mapstr, free_locations = create_free_world(4,4) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        mapstr, free_locations = create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
 
         robot_pose = random.sample(free_locations, 1)[0]
         objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
@@ -143,7 +143,7 @@ class AdversarialTrial(Trial):
                                 # "D": objD_pose,
                                 "E": objE_pose})
         
-        sensorstr = make_laser_sensor(90, (1, 1), 0.5, False)
+        sensorstr = make_laser_sensor(30, (1, 2), 0.5, False)
         worldstr = equip_sensors(mapstr, {robot_char: sensorstr})
         big = 100
         small = 1
@@ -180,6 +180,15 @@ class AdversarialTrial(Trial):
 
         # create agents
         agents = {}
+
+        ## adversarial targets
+        adv_prior = {}
+        for x,y in free_locations:
+            if (x,y) == init_state.pose(robot_id):
+                adv_prior[(x,y)] = 1.0
+            else:
+                adv_prior[(x,y)] = 1e-9
+                
         for objid in env.target_objects:
             obj_sensor = copy.deepcopy(sensors[robot_id])
             obj_sensor.robot_id = objid
@@ -189,7 +198,7 @@ class AdversarialTrial(Trial):
                                        motion_policies[objid],
                                        grid_map,
                                        robot_id,
-                                       prior={robot_id: {init_state.pose(robot_id): 1.0}},
+                                       prior={robot_id: adv_prior},
                                        action_prior=AdversarialActionPrior(objid, robot_id,
                                                                            grid_map, 10, big,
                                                                            motion_policies[objid]))
@@ -329,6 +338,10 @@ class AdversarialTrial(Trial):
                        viz_observation,
                        agents[robot_id].cur_belief)
             img = viz.on_render()
+            for target_id in env.target_objects:
+                print("  Target %d believes robot is at %s" %
+                      (target_id, str(agents[target_id].cur_belief.mpe().robot_state)))
+            print("  [The robot is actually at %s]" % str(env.state.robot_state))
 
             # Termination check
             if set(env.state.object_states[robot_id].objects_found)\

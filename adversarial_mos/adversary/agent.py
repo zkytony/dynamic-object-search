@@ -104,10 +104,10 @@ class AdversarialObservationModel(pomdp_py.ObservationModel):
 
         if isinstance(next_state, ObjectState):
             assert next_state.objclass == "robot"
-            object_pose = next_state.pose
+            object_pose = next_state.pose[:2]
         else:
             object_pose = next_state.object_poses(self._robot_id)
-        
+
         if observation.pose != object_pose:
             return 1e-9
         else:
@@ -124,7 +124,7 @@ class AdversarialObservationModel(pomdp_py.ObservationModel):
         Returns:
             Observation: the observation :math:`o`
         """
-        return ObjectObservation(self._robot_id, next_state.pose(self._robot_id))
+        return ObjectObservation(self._robot_id, next_state.pose(self._robot_id)[:2])
         
     
     def argmax(self, next_state, action, **kwargs):

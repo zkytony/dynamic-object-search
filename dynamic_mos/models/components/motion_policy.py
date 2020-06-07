@@ -7,9 +7,24 @@ from ...domain.state import *
 from ...domain.action import *
 from ...utils import *
 
-def next_pose(pose, action):
-    return (pose[0] + action[0],
-            pose[1] + action[1])
+def next_pose(pose, action, motion_scheme="xy"):
+    if len(pose) == 2:
+        return (pose[0] + action[0],
+                pose[1] + action[1])
+    elif len(pose) == 3:
+        if motion_scheme == "xy":
+            return (pose[0] + action[0],
+                    pose[1] + action[1],
+                    action[2])
+        else:
+            rx, ry, rth = pose
+            forward, angle = action.motion
+            rth += angle  # angle (radian)
+            rx = int(round(rx + forward*math.cos(rth)))
+            ry = int(round(ry + forward*math.sin(rth)))
+            rth = rth % (2*math.pi)
+            return (rx, ry, rth)
+        
 
 class IterativeMotionPolicy(pomdp_py.GenerativeDistribution):
     """A simple Deterministic motion policy where the object
@@ -257,7 +272,7 @@ class AdversarialPolicy(StochaisticPolicy):
             cur_dist = euclidean_dist(robot_pose, object_pose)
             for action in self._legal_actions[object_pose[:2]]:
                 next_dist = euclidean_dist(next_pose(object_pose[:2], action.motion), robot_pose)
-                if next_dist <= cur_dist:
+                if next_dist < cur_dist:
                     candidate_actions.append(action)
         else:
             raise ValueError("Unknown adversarial rule %s" % self._rule)

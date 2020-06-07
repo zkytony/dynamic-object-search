@@ -100,6 +100,7 @@ class Laser2DSensor:
         if len(robot_pose) == 2:
             rx, ry = robot_pose
             rth = 0
+            print("HEY")
         else:
             rx, ry, rth = robot_pose
         dist = euclidean_dist(point, (rx,ry))

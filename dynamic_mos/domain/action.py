@@ -39,6 +39,7 @@ MOTION_SCHEME="xy"  # can be either xy or vw
 STEP_SIZE=1
 class MotionAction(Action):
     # scheme 1 (vx,vy,th)
+    ORIENTATIONS = [0, math.pi, 3*math.pi/2, math.pi/2]
     EAST = (STEP_SIZE, 0, 0)  # x is horizontal; x+ is right. y is vertical; y+ is down.
     WEST = (-STEP_SIZE, 0, math.pi)
     NORTH = (0, -STEP_SIZE, 3*math.pi/2)

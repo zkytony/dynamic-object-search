@@ -11,6 +11,7 @@ from dynamic_mos.experiments.baselines.handcraft import *
 from adversarial_mos import *
 from dynamic_mos.dynamic_worlds import *
 import concurrent.futures
+import time
 random.seed(1000)
 
 
@@ -28,10 +29,10 @@ class ParallelPlanner(pomdp_py.Planner):
     def agents(self):
         return self._agents
 
-    def plan(self):
+    def plan(self, agent_ids):
         # # Plan with all planners
         with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = executor.map(self._plan_single, self._planners.keys())
+            results = executor.map(self._plan_single, agent_ids)
         # results = []
         # for agent_id in self._planners:
         #     results.append(self._plan_single(agent_id))
@@ -95,7 +96,7 @@ class ParallelPlanner(pomdp_py.Planner):
             agent.cur_belief.set_object_belief(objid, new_belief)
         return (agent_id, agent.cur_belief)
             
-    def update(self, real_action, real_observation, next_state, state):
+    def update(self, real_action, real_observation, next_state, state, agent_ids=None):
         assert isinstance(real_action, CompositeAction)
         assert isinstance(real_observation, CompositeObservation)        
 
@@ -109,14 +110,16 @@ class ParallelPlanner(pomdp_py.Planner):
         #     # if agent_id != self._robot_id:
         #     #     continue
         #     self._agents[agent_id].set_belief(belief)
-            
-        for agent_id in self._agents:
+        if agent_ids is None:
+            agent_ids = set(self._agents.keys())
+
+        for agent_id in agent_ids:
             self._update_belief((agent_id, real_action[agent_id],
                                  real_observation[agent_id],
                                  next_state.object_states[agent_id],
                                  state.object_states[agent_id]))
         
-        for agent_id in self._agents:
+        for agent_id in agent_ids:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
             self._planners[agent_id].update(self._agents[agent_id], real_action[agent_id], real_observation[agent_id])            
 
@@ -127,11 +130,47 @@ class AdversarialTrial(Trial):
         super().__init__(name, config, verbose=verbose)
 
 
+    def _do_loop(self, env, planning_agent_ids, ma_planner, all_agent_ids):
+        comp_action = ma_planner.plan(planning_agent_ids)
+        prev_state = copy.deepcopy(env.state)
+        reward = env.state_transition(comp_action, execute=True)
+        comp_observation = CompositeObservation({
+            agent_id:
+            env.provide_observation(
+                ma_planner.agents[agent_id].observation_model,
+                comp_action[agent_id])
+            for agent_id in ma_planner.agents
+        })
+        ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state),
+                          prev_state, agent_ids=all_agent_ids)
+        return comp_action, comp_observation, reward, prev_state
+
+    def _do_viz(self, viz, env, viz_state, robot_id,
+                agents, comp_action, comp_observation,
+                look_after_move=True):
+        # Visualize
+        robot_pose = env.state.object_states[robot_id].pose
+        viz_observation = MosOOObservation({})
+        if isinstance(comp_action[robot_id], LookAction)\
+           or isinstance(comp_action[robot_id], FindAction)\
+           or look_after_move:
+            viz_observation = \
+                agents[robot_id].sensor.observe(robot_pose,
+                                                viz_state)
+        viz.update(robot_id,
+                   comp_action[robot_id],
+                   comp_observation[robot_id],
+                   viz_observation,
+                   agents[robot_id].cur_belief)
+        img = viz.on_render()
+        return img
+        
+    
     def run(self, logging=False):
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        # mapstr, free_locations = create_free_world(4,4) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
-        mapstr, free_locations = create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
+        mapstr, free_locations = create_free_world(3,3) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        # mapstr, free_locations = create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
 
         robot_pose = random.sample(free_locations, 1)[0]
         objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
@@ -143,7 +182,7 @@ class AdversarialTrial(Trial):
                                 # "D": objD_pose,
                                 "E": objE_pose})
         
-        sensorstr = make_laser_sensor(30, (1, 2), 0.5, False)
+        sensorstr = make_laser_sensor(30, (1, 1), 0.5, False)
         worldstr = equip_sensors(mapstr, {robot_char: sensorstr})
         big = 100
         small = 1
@@ -162,7 +201,7 @@ class AdversarialTrial(Trial):
                                            **objects})
 
         # motion policies
-        motion_actions = create_motion_actions(scheme="xy")        
+        motion_actions = create_motion_actions(scheme="xy", can_stay=True)
         target_objects = compute_target_objects(grid_map, init_state)
         motion_policies = {
             objid: BasicMotionPolicy(objid, grid_map, motion_actions)
@@ -240,7 +279,7 @@ class AdversarialTrial(Trial):
         
         
         # solve
-        max_depth=10  # planning horizon
+        max_depth=3  # planning horizon
         discount_factor=0.99
         planning_time=1.       # amount of time (s) to plan each step
         exploration_const=1000
@@ -287,31 +326,30 @@ class AdversarialTrial(Trial):
         _total_reward = 0  # total, undiscounted reward        
         for i in range(max_steps):
 
-            # all planners plan in parallel
-            comp_action = ma_planner.plan()
+            # Case 1: All plan in parallel
+            comp_action, comp_observation, reward, prev_state\
+                = self._do_loop(env, set(agents.keys()), ma_planner, set(agents.keys()))
+            self._do_viz(viz, env, viz_state, robot_id, agents, comp_action, comp_observation,
+                         look_after_move=look_after_move)
 
-            # execute action
-            prev_state = copy.deepcopy(env.state)
-            reward = env.state_transition(comp_action, execute=True)
+            # # Case 2: Robot plans first
+            # print("ROBOT DO LOOP")
+            # comp_action, comp_observation, reward, prev_state\
+            #     = self._do_loop(env, {robot_id}, ma_planner, set(agents.keys()))
+            # self._do_viz(viz, env, viz_state, robot_id, agents, comp_action, comp_observation,
+            #              look_after_move=look_after_move)
 
-            # receive observation
-            # import pdb; pdb.set_trace()
-            comp_observation = CompositeObservation({
-                agent_id:
-                env.provide_observation(
-                    ma_planner.agents[agent_id].observation_model,
-                    comp_action[agent_id])
-                for agent_id in ma_planner.agents
-            })
+            # _total_reward += reward
+            # # Record find action count
+            # if isinstance(comp_action[robot_id], FindAction):
+            #     _find_actions_count += 1
 
-            # Update
-            ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state), prev_state)
+            # print("TARGETS DO LOOP")
+            # comp_action, comp_observation, _, prev_state\
+            #     = self._do_loop(env, env.target_objects, ma_planner, set(agents.keys()))
+            # self._do_viz(viz, env, viz_state, robot_id, agents, comp_action, comp_observation,
+            #              look_after_move=look_after_move)                        
             
-            _total_reward += reward
-
-            # Record find action count
-            if isinstance(comp_action[robot_id], FindAction):
-                _find_actions_count += 1
                 
             # Info
             _step_info = "Step %d:  action: %s   reward: %.3f  cum_reward: %.3f"\
@@ -323,21 +361,6 @@ class AdversarialTrial(Trial):
             else:
                 print(_step_info)
 
-            # Visualize
-            robot_pose = env.state.object_states[robot_id].pose
-            viz_observation = MosOOObservation({})
-            if isinstance(comp_action[robot_id], LookAction)\
-               or isinstance(comp_action[robot_id], FindAction)\
-               or look_after_move:
-                viz_observation = \
-                    agents[robot_id].sensor.observe(robot_pose,
-                                                    viz_state)
-            viz.update(robot_id,
-                       comp_action[robot_id],
-                       comp_observation[robot_id],
-                       viz_observation,
-                       agents[robot_id].cur_belief)
-            img = viz.on_render()
             for target_id in env.target_objects:
                 print("  Target %d believes robot is at %s" %
                       (target_id, str(agents[target_id].cur_belief.mpe().robot_state)))

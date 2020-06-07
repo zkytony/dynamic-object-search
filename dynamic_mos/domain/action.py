@@ -43,6 +43,7 @@ class MotionAction(Action):
     WEST = (-STEP_SIZE, 0, math.pi)
     NORTH = (0, -STEP_SIZE, 3*math.pi/2)
     SOUTH = (0, STEP_SIZE, math.pi/2)
+    STAY = (0,0,0)
     # scheme 2 (vt, vw) translational, rotational velocities.
     FORWARD = (STEP_SIZE, 0)
     BACKWARD = (-STEP_SIZE, 0)
@@ -62,12 +63,12 @@ class MotionAction(Action):
 
         if scheme == "xy":
             if motion not in {MotionAction.EAST, MotionAction.WEST,
-                              MotionAction.NORTH, MotionAction.SOUTH}:
-                raise ValueError("Invalid move motion %s" % motion)
+                              MotionAction.NORTH, MotionAction.SOUTH, MotionAction.STAY}:
+                raise ValueError("Invalid move motion %s" % str(motion))
         else:
             if motion not in {MotionAction.FORWARD, MotionAction.BACKWARD,
                               MotionAction.LEFT, MotionAction.RIGHT}:
-                raise ValueError("Invalid move motion %s" % motion)
+                raise ValueError("Invalid move motion %s" % str(motion))
             
         self.motion = motion
         self.scheme = scheme
@@ -97,6 +98,8 @@ MoveNorth = MotionAction(MotionAction.NORTH, scheme="xy",
                          motion_name="North", distance_cost=STEP_SIZE)
 MoveSouth = MotionAction(MotionAction.SOUTH, scheme="xy",
                          motion_name="South", distance_cost=STEP_SIZE)
+Stay = MotionAction(MotionAction.STAY, scheme="xy",
+                    motion_name="Stay", distance_cost=0)
 MoveForward = MotionAction(MotionAction.FORWARD, scheme="vw",
                            motion_name="Forward", distance_cost=STEP_SIZE)
 MoveBackward = MotionAction(MotionAction.BACKWARD, scheme="vw",
@@ -106,7 +109,7 @@ MoveLeft = MotionAction(MotionAction.LEFT, scheme="vw",
 MoveRight = MotionAction(MotionAction.RIGHT, scheme="vw",
                          motion_name="TurnRight", distance_cost=STEP_SIZE)
 
-def create_motion_actions(scheme="xy", distance_cost=STEP_SIZE):
+def create_motion_actions(scheme="xy", distance_cost=STEP_SIZE, can_stay=False):
     if scheme == "xy":
         actions = copy.deepcopy({MoveEast, MoveWest, MoveNorth, MoveSouth})
     elif scheme == "vw":
@@ -115,4 +118,7 @@ def create_motion_actions(scheme="xy", distance_cost=STEP_SIZE):
         raise ValueError("motion scheme '%s' is invalid" % MOTION_SCHEME)
     for a in actions:
         a.distance_cost = distance_cost
-    return actions    
+    if can_stay:
+        return actions | {Stay}
+    else:
+        return actions    

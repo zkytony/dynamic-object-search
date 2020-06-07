@@ -12,12 +12,13 @@ from dynamic_mos.agent.belief import MosOOBelief
 
 class AdversarialRewardModel(pomdp_py.RewardModel):
     """Adversarial agent reward model"""
-    def __init__(self, object_id, robot_id, keep_dist=2, big=100, small=1):
+    def __init__(self, object_id, robot_id, robot_sensor, big=100, small=1):
         self._robot_id = robot_id
         self._object_id = object_id
         self.big = big
         self.small = small
-        self._keep_dist = keep_dist
+        self._robot_sensor = robot_sensor
+        # self._keep_dist = keep_dist
 
     def probability(self, reward, state, action, next_state, normalized=False, **kwargs):
         if reward == self._reward_func(state, action):
@@ -37,14 +38,23 @@ class AdversarialRewardModel(pomdp_py.RewardModel):
     def _reward_func(self, state, action, next_state):
         # if the adversarial has been detected by the robot, then -big.
         # otherwise, -small
-        reward = 0
-        next_dist = euclidean_dist(state.pose(self._object_id),
-                                   state.pose(self._robot_id))
-        if next_dist < self._keep_dist:
-            reward -= self.big
+        cur_in_range = self._robot_sensor.within_range(state.pose(self._robot_id),
+                                                       state.pose(self._object_id))
+        next_in_range = self._robot_sensor.within_range(next_state.pose(self._robot_id),
+                                                        next_state.pose(self._object_id))
+        if not cur_in_range and next_in_range:
+            return -self.big
         else:
-            reward -= self.small
-        return reward
+            return -self.small
+        
+        # reward = 0
+        # next_dist = euclidean_dist(state.pose(self._object_id),
+        #                            state.pose(self._robot_id))
+        # if next_dist < self._keep_dist:
+        #     reward -= self.big
+        # else:
+        #     reward -= self.small
+        # return reward
 
     
 class BasicMotionPolicy(StochaisticPolicy):
@@ -104,7 +114,8 @@ class AdversarialObservationModel(pomdp_py.ObservationModel):
 
         if isinstance(next_state, ObjectState):
             assert next_state.objclass == "robot"
-            object_pose = next_state.pose[:2]
+            assert len(next_state.pose) == 3
+            object_pose = next_state.pose
         else:
             object_pose = next_state.object_poses(self._robot_id)
 
@@ -124,7 +135,7 @@ class AdversarialObservationModel(pomdp_py.ObservationModel):
         Returns:
             Observation: the observation :math:`o`
         """
-        return ObjectObservation(self._robot_id, next_state.pose(self._robot_id)[:2])
+        return ObjectObservation(self._robot_id, next_state.pose(self._robot_id))
         
     
     def argmax(self, next_state, action, **kwargs):
@@ -227,6 +238,7 @@ class AdversarialTarget(pomdp_py.Agent):
                  motion_policy,  # motion actions of the target
                  grid_map,
                  robot_id,
+                 robot_sensor,
                  **kwargs):
         """
         kwargs include:
@@ -255,6 +267,7 @@ class AdversarialTarget(pomdp_py.Agent):
         #                                            look_after_move=True)
 
         reward_model = AdversarialRewardModel(object_id, robot_id,
+                                              robot_sensor,
                                               big=kwargs.get("big", 100),
                                               small=kwargs.get("small", 1))
         

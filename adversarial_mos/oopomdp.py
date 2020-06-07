@@ -169,20 +169,23 @@ class AdversarialTrial(Trial):
     def run(self, logging=False):
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_free_world(3,3) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        mapstr, free_locations = create_free_world(6,6) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
         # mapstr, free_locations = create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
 
-        robot_pose = random.sample(free_locations, 1)[0]
-        objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
-        objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]        
+        # robot_pose = random.sample(free_locations, 1)[0]
+        # objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
+        # objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]
+        robot_pose = (2, 1)
+        objE_pose = (3,0)
 
         # place objects
         mapstr = place_objects(mapstr,
                                {"r": robot_pose,
                                 # "D": objD_pose,
                                 "E": objE_pose})
-        
-        sensorstr = make_laser_sensor(30, (1, 1), 0.5, False)
+
+        sensing_range = 2
+        sensorstr = make_laser_sensor(90, (1, sensing_range), 0.5, False)
         worldstr = equip_sensors(mapstr, {robot_char: sensorstr})
         big = 100
         small = 1
@@ -201,7 +204,7 @@ class AdversarialTrial(Trial):
                                            **objects})
 
         # motion policies
-        motion_actions = create_motion_actions(scheme="xy", can_stay=True)
+        motion_actions = create_motion_actions(scheme="xy", can_stay=False)
         target_objects = compute_target_objects(grid_map, init_state)
         motion_policies = {
             objid: BasicMotionPolicy(objid, grid_map, motion_actions)
@@ -223,10 +226,12 @@ class AdversarialTrial(Trial):
         ## adversarial targets
         adv_prior = {}
         for x,y in free_locations:
-            if (x,y) == init_state.pose(robot_id):
-                adv_prior[(x,y)] = 1.0
-            else:
-                adv_prior[(x,y)] = 1e-9
+            for th in MotionAction.ORIENTATIONS:
+                if (x,y,th) == init_state.pose(robot_id):
+                    adv_prior[(x,y,th)] = 1.0
+                else:
+                    adv_prior[(x,y,th)] = 1e-9
+            
                 
         for objid in env.target_objects:
             obj_sensor = copy.deepcopy(sensors[robot_id])
@@ -237,6 +242,7 @@ class AdversarialTrial(Trial):
                                        motion_policies[objid],
                                        grid_map,
                                        robot_id,
+                                       sensors[robot_id],
                                        prior={robot_id: adv_prior},
                                        action_prior=AdversarialActionPrior(objid, robot_id,
                                                                            grid_map, 10, big,
@@ -279,8 +285,8 @@ class AdversarialTrial(Trial):
         
         
         # solve
-        max_depth=3  # planning horizon
-        discount_factor=0.99
+        max_depth=10  # planning horizon
+        discount_factor=0.95
         planning_time=1.       # amount of time (s) to plan each step
         exploration_const=1000
         max_steps=150

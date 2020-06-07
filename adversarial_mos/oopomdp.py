@@ -46,8 +46,8 @@ class ParallelPlanner(pomdp_py.Planner):
         return CompositeAction(actions)
 
     def _plan_single(self, agent_id):
-        if agent_id != self._robot_id:
-            return None
+        # if agent_id != self._robot_id:
+        #     return None
         action = self._planners[agent_id].plan(self._agents[agent_id])
         if isinstance(self._planners[agent_id], pomdp_py.POUCT):
             action_value = self._agents[agent_id].tree[action].value
@@ -106,8 +106,8 @@ class ParallelPlanner(pomdp_py.Planner):
                   next_state.object_states[agent_id], state.object_states[agent_id])
                  for agent_id in self._agents))
         for agent_id, belief in results:
-            if agent_id != self._robot_id:
-                continue
+            # if agent_id != self._robot_id:
+            #     continue
             self._agents[agent_id].set_belief(belief)
             
         # for agent_id in self._agents:
@@ -131,7 +131,7 @@ class AdversarialTrial(Trial):
 
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_free_world(10,10) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        mapstr, free_locations = create_free_world(3,3) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
 
         robot_pose = random.sample(free_locations, 1)[0]
         objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
@@ -140,10 +140,10 @@ class AdversarialTrial(Trial):
         # place objects
         mapstr = place_objects(mapstr,
                                {"r": robot_pose,
-                                "D": objD_pose,
+                                # "D": objD_pose,
                                 "E": objE_pose})
         
-        sensorstr = make_laser_sensor(90, (1, 2), 0.5, False)
+        sensorstr = make_laser_sensor(90, (1, 1), 0.5, False)
         worldstr = equip_sensors(mapstr, {robot_char: sensorstr})
         big = 100
         small = 1

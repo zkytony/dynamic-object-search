@@ -38,12 +38,16 @@ class ParallelPlanner(pomdp_py.Planner):
 
         # Return a composite action
         actions = {}
-        for agent_id, action, action_value, agent, num_sims in results:
-            actions[agent_id] = action
-            print("Agent %d: %s" % (agent_id, str(action)))
+        for res in results:
+            if res is not None:
+                agent_id, action, action_value, agent, num_sims = res
+                actions[agent_id] = action
+                print("Agent %d: %s" % (agent_id, str(action)))
         return CompositeAction(actions)
 
     def _plan_single(self, agent_id):
+        if agent_id != self._robot_id:
+            return None
         action = self._planners[agent_id].plan(self._agents[agent_id])
         if isinstance(self._planners[agent_id], pomdp_py.POUCT):
             action_value = self._agents[agent_id].tree[action].value
@@ -60,6 +64,9 @@ class ParallelPlanner(pomdp_py.Planner):
             if objid == agent_id:
                 new_belief = pomdp_py.Histogram({next_agent_state: 1.0})
             else:
+                if isinstance(next_agent_state, RobotState)\
+                   and objid in next_agent_state["objects_found"]:
+                    continue
                 belief_obj = agent.cur_belief.object_belief(objid)
                 if isinstance(agent.observation_model, pomdp_py.OOObservationModel):
                     obj_observation = observation.for_obj(objid)
@@ -99,6 +106,8 @@ class ParallelPlanner(pomdp_py.Planner):
                   next_state.object_states[agent_id], state.object_states[agent_id])
                  for agent_id in self._agents))
         for agent_id, belief in results:
+            if agent_id != self._robot_id:
+                continue
             self._agents[agent_id].set_belief(belief)
             
         # for agent_id in self._agents:
@@ -122,7 +131,7 @@ class AdversarialTrial(Trial):
 
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_two_room_world(4,4,3,1)
+        mapstr, free_locations = create_free_world(10,10) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
 
         robot_pose = random.sample(free_locations, 1)[0]
         objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
@@ -227,6 +236,7 @@ class AdversarialTrial(Trial):
         planning_time=1.       # amount of time (s) to plan each step
         exploration_const=1000
         max_steps=150
+        look_after_move = True
 
         searcher_type = "greedy"
         
@@ -241,16 +251,22 @@ class AdversarialTrial(Trial):
         }
         if searcher_type == "greedy":
             planners[robot_id] = GreedyPlanner(env.grid_map,
-                                               look_after_move=True)
+                                               look_after_move=look_after_move)
         if searcher_type == "random":
             planners[robot_id] = RandomPlanner(env.grid_map,
-                                               look_after_move=True)
+                                               look_after_move=look_after_move)
 
         ma_planner = ParallelPlanner(planners, agents, robot_id)
         
         viz = MosViz(env, controllable=False)
         if viz.on_init() == False:
             raise Exception("Environment failed to initialize")
+        viz_state = {}  # state that covers the whole map for observation visualization.
+        for x in range(env.grid_map.width):
+            for y in range(env.grid_map.length):
+                viz_objid = len(viz_state)
+                viz_state[viz_objid] = ObjectState(viz_objid, "obstacle", (x,y))
+        viz_state = MosOOState(robot_id, viz_state)
         viz.update(robot_id,
                    None,
                    None,
@@ -302,10 +318,11 @@ class AdversarialTrial(Trial):
             robot_pose = env.state.object_states[robot_id].pose
             viz_observation = MosOOObservation({})
             if isinstance(comp_action[robot_id], LookAction)\
-               or isinstance(comp_action[robot_id], FindAction):
+               or isinstance(comp_action[robot_id], FindAction)\
+               or look_after_move:
                 viz_observation = \
                     agents[robot_id].sensor.observe(robot_pose,
-                                                    env.state)
+                                                    viz_state)
             viz.update(robot_id,
                        comp_action[robot_id],
                        comp_observation[robot_id],

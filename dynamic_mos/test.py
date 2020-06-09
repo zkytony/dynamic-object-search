@@ -39,9 +39,11 @@ def test_single(case, ntrials=1, planner_type="pouct",
             mapstr, free_locations = create_hallway_world(*case)
         elif world_type == "connected_hallway":
             mapstr, free_locations = create_connected_hallway_world(*case)                        
-        robot_pose = random.sample(free_locations, 1)[0]
-        objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
-        objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]
+        # robot_pose = random.sample(free_locations, 1)[0]
+        # objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
+        # objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]
+        robot_pose = (2, 1)
+        objE_pose = (3,0)        
 
         if dynamics == "goal":
             objD_goal = random.sample(free_locations - {robot_pose, objD_pose, objE_pose}, 1)[0]
@@ -50,14 +52,14 @@ def test_single(case, ntrials=1, planner_type="pouct",
                            "E": ("goal", (objE_goal, 0.5))}
         elif dynamics == "adversarial":
             rule = "avoid"
-            motion_spec = {"D": ("adversarial", (0.2, rule)),
-                           "E": ("adversarial", (0.2, rule))}
+            motion_spec = {"D": ("adversarial", (1e-9, rule)),
+                           "E": ("adversarial", (1e-9, rule))}
         else:
             motion_spec = {"D": ("random", 0.4),
                            "E": ("random", 0.1)}
         world = (place_objects(mapstr,
                                {"r": robot_pose,
-                                "D": objD_pose,
+                                # "D": objD_pose,
                                 "E": objE_pose}),
                  "r", motion_spec)
         _total_reward = unittest(world, planner_type=planner_type,
@@ -84,7 +86,8 @@ def test_particular_world(world, planner_type="pouct", sensor_range=4,
     
 
 if __name__ == "__main__":
-    random.seed(90595)
+    random.seed(1000)
+    # random.seed(90595)
     
     # test_single((8,8,8,1), world_type="two_rooms", ntrials=1, planner_type="pouct#preferred", sensor_range=2,
     #             planning_time=0.9, discount_factor=0.95, dynamics="random",
@@ -98,7 +101,7 @@ if __name__ == "__main__":
     #             planning_time=0.7, discount_factor=0.95, dynamics="adversarial",
     #             max_depth=20, belief_rep="histogram")
     
-    test_single((20,20), world_type="free", ntrials=1, planner_type="pouct#preferred", sensor_range=2,
+    test_single((6,6), world_type="free", ntrials=1, planner_type="greedy", sensor_range=2,
                 planning_time=0.7, discount_factor=0.95, dynamics="adversarial",
                 max_depth=20, belief_rep="histogram")
 

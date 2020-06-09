@@ -12,6 +12,9 @@ from adversarial_mos import *
 from dynamic_mos.dynamic_worlds import *
 import concurrent.futures
 import time
+import cv2
+import sys
+import os
 random.seed(1000)
 
 
@@ -98,26 +101,28 @@ class ParallelPlanner(pomdp_py.Planner):
             
     def update(self, real_action, real_observation, next_state, state, agent_ids=None):
         assert isinstance(real_action, CompositeAction)
-        assert isinstance(real_observation, CompositeObservation)        
+        assert isinstance(real_observation, CompositeObservation)
 
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     results = executor.map(
-        #         self._update_belief,
-        #         ((agent_id, real_action[agent_id], real_observation[agent_id],
-        #           next_state.object_states[agent_id], state.object_states[agent_id])
-        #          for agent_id in self._agents))
-        # for agent_id, belief in results:
-        #     # if agent_id != self._robot_id:
-        #     #     continue
-        #     self._agents[agent_id].set_belief(belief)
         if agent_ids is None:
-            agent_ids = set(self._agents.keys())
+            agent_ids = set(self._agents.keys())        
 
-        for agent_id in agent_ids:
-            self._update_belief((agent_id, real_action[agent_id],
-                                 real_observation[agent_id],
-                                 next_state.object_states[agent_id],
-                                 state.object_states[agent_id]))
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(
+                self._update_belief,
+                ((agent_id, real_action[agent_id], real_observation[agent_id],
+                  next_state.object_states[agent_id], state.object_states[agent_id])
+                 for agent_id in agent_ids))
+        for agent_id, belief in results:
+            # if agent_id != self._robot_id:
+            #     continue
+            self._agents[agent_id].set_belief(belief)
+
+
+        # for agent_id in agent_ids:
+        #     self._update_belief((agent_id, real_action[agent_id],
+        #                          real_observation[agent_id],
+        #                          next_state.object_states[agent_id],
+        #                          state.object_states[agent_id]))
         
         for agent_id in agent_ids:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
@@ -147,7 +152,7 @@ class AdversarialTrial(Trial):
 
     def _do_viz(self, viz, env, viz_state, robot_id,
                 agents, comp_action, comp_observation,
-                look_after_move=True):
+                look_after_move=True, save_path=None, step_index=-1):
         # Visualize
         robot_pose = env.state.object_states[robot_id].pose
         viz_observation = MosOOObservation({})
@@ -163,20 +168,26 @@ class AdversarialTrial(Trial):
                    viz_observation,
                    agents[robot_id].cur_belief)
         img = viz.on_render()
+        if save_path is not None:
+            # Rotate the image ccw 90 degree and convert color
+            img = img.astype(np.float32)
+            img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)  # rotate 90deg clockwise
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            cv2.imwrite(os.path.join(save_path, "step_%d.png" % (step_index)), img)
         return img
         
     
     def run(self, logging=False):
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_free_world(6,6) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        mapstr, free_locations = create_hallway_world(9, 2, 1, 2, 3) #create_free_world(6,6) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
         # mapstr, free_locations = create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
 
-        # robot_pose = random.sample(free_locations, 1)[0]
-        # objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
-        # objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]
-        robot_pose = (2, 1)
-        objE_pose = (3,0)
+        robot_pose = random.sample(free_locations, 1)[0]
+        objD_pose = random.sample(free_locations - {robot_pose}, 1)[0]
+        objE_pose = random.sample(free_locations - {robot_pose, objD_pose}, 1)[0]
+        # robot_pose = (2, 1)
+        # objE_pose = (3,0)
 
         # place objects
         mapstr = place_objects(mapstr,
@@ -184,12 +195,12 @@ class AdversarialTrial(Trial):
                                 # "D": objD_pose,
                                 "E": objE_pose})
 
-        sensing_range = 2
+        sensing_range = 3
         sensorstr = make_laser_sensor(90, (1, sensing_range), 0.5, False)
         worldstr = equip_sensors(mapstr, {robot_char: sensorstr})
         big = 100
         small = 1
-        
+
         # interpret the world string
         dim, robots, objects, obstacles, sensors, _\
             = interpret(worldstr, {})
@@ -204,7 +215,7 @@ class AdversarialTrial(Trial):
                                            **objects})
 
         # motion policies
-        motion_actions = create_motion_actions(scheme="xy", can_stay=False)
+        motion_actions = create_motion_actions(scheme="xy", can_stay=True)
         target_objects = compute_target_objects(grid_map, init_state)
         motion_policies = {
             objid: BasicMotionPolicy(objid, grid_map, motion_actions)
@@ -292,7 +303,7 @@ class AdversarialTrial(Trial):
         max_steps=150
         look_after_move = True
 
-        searcher_type = "greedy"
+        searcher_type = "pouct"
         
         planners = {
             aid: pomdp_py.POUCT(max_depth=max_depth,
@@ -311,7 +322,8 @@ class AdversarialTrial(Trial):
                                                look_after_move=look_after_move)
 
         ma_planner = ParallelPlanner(planners, agents, robot_id)
-        
+
+        # Visualization and saving of screenshots
         viz = MosViz(env, controllable=False)
         if viz.on_init() == False:
             raise Exception("Environment failed to initialize")
@@ -327,6 +339,11 @@ class AdversarialTrial(Trial):
                    None,
                    agents[robot_id].cur_belief)
         viz.on_render()
+        save_path = None
+        if len(sys.argv) > 1:
+            save_path = sys.argv[1]
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)        
 
         _find_actions_count = 0
         _total_reward = 0  # total, undiscounted reward        
@@ -336,7 +353,7 @@ class AdversarialTrial(Trial):
             comp_action, comp_observation, reward, prev_state\
                 = self._do_loop(env, set(agents.keys()), ma_planner, set(agents.keys()))
             self._do_viz(viz, env, viz_state, robot_id, agents, comp_action, comp_observation,
-                         look_after_move=look_after_move)
+                         look_after_move=look_after_move, save_path=save_path, step_index=i)
 
             # # Case 2: Robot plans first
             # print("ROBOT DO LOOP")

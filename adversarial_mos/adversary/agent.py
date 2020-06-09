@@ -302,12 +302,14 @@ class AdversarialTarget(pomdp_py.Agent):
                 for y in range(self._grid_map.length):
                     if (x,y) in self._grid_map.obstacle_poses:
                         continue
-                    state = ObjectState(self._robot_id,
-                                        "robot",
-                                        pose,
-                                        time=0)
-                    hist[state] = 1.0
-                    total_prob += hist[state]
+                    for th in MotionAction.ORIENTATIONS:
+                        pose = (x,y,th)
+                        state = ObjectState(self._robot_id,
+                                            "robot",
+                                            pose,
+                                            time=0)
+                        hist[state] = 1.0
+                        total_prob += hist[state]
             # Normalize
             for state in hist:
                 hist[state] /= total_prob

@@ -4,9 +4,7 @@ import random
 import copy
 from search_and_rescue.env.action import *
 from search_and_rescue.env.state import *
-
-def euclidean_dist(p1, p2):
-    return math.sqrt(sum([(a - b)** 2 for a, b in zip(p1, p2)]))
+from search_and_rescue.utils import *
 
 def next_pose(pose, action, motion_scheme="xy"):
     if len(pose) == 2:
@@ -300,7 +298,7 @@ def unittest():
 
     adv = AdversarialPolicy(3, 4, grid_map, 3, motion_actions=motion_actions)
     print(adv.probability(next_object_state, state))
-    print(adv.random(state))    
+    print(adv.random(state))
 
 if __name__ == '__main__':
     unittest()

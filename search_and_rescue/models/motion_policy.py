@@ -2,7 +2,6 @@ import math
 import pomdp_py
 import random
 import copy
-from search_and_rescue.models.grid_map import GridMap
 from search_and_rescue.env.action import *
 from search_and_rescue.env.state import *
 
@@ -183,7 +182,8 @@ class BasicMotionPolicy(StochaisticPolicy):
 
 
 class AdversarialPolicy(StochaisticPolicy):
-    def __init__(self, grid_map, sensor_range, pr_stay=0.3,
+    def __init__(self, object_id, robot_id,
+                 grid_map, sensor_range, pr_stay=0.3,
                  rule="avoid", motion_actions=None):
         """With probability `pr_stay`, the object stays in place.
         With the complement probability, the agent moves to maintain
@@ -196,6 +196,8 @@ class AdversarialPolicy(StochaisticPolicy):
         choose actions that maintains sensor range distance away
         from the robot."""
         super().__init__(grid_map, motion_actions=motion_actions)
+        self._object_id = object_id  # the adversary
+        self._robot_id = robot_id  # the chaser
         self._sensor_range = sensor_range
         self._pr_stay = pr_stay
         self._rule = rule
@@ -227,9 +229,9 @@ class AdversarialPolicy(StochaisticPolicy):
             raise ValueError("Unknown adversarial rule %s" % self._rule)
         return candidate_actions
         
-    def probability(self, next_object_state, cur_object_state, cur_robot_state):
-        cur_object_pose = cur_object_state.pose
-        next_object_pose = next_object_state.pose        
+    def probability(self, next_object_state, state):
+        cur_object_pose = state.pose(self._object_id)
+        next_object_pose = next_object_state.pose
         diff_x = abs(cur_object_pose[0] - next_object_pose[0])
         diff_y = abs(cur_object_pose[1] - next_object_pose[1])
         if not ((diff_x == STEP_SIZE and diff_y == 0)
@@ -237,7 +239,7 @@ class AdversarialPolicy(StochaisticPolicy):
                 or (diff_x == 0 and diff_y == 0)):
             return 1e-9
 
-        actions = self._adversarial_actions(cur_object_pose, cur_robot_state.pose)
+        actions = self._adversarial_actions(cur_object_pose, state.pose(self._robot_id))
         if len(actions) == 0:
             # No adversarial actions possible.
             if cur_object_pose == next_object_pose:
@@ -258,7 +260,9 @@ class AdversarialPolicy(StochaisticPolicy):
                         return (1.0 - self._pr_stay) / len(actions)
                 return 1e-9
 
-    def random(self, object_state, robot_state):
+    def random(self, state):
+        object_state = state.object_states[self._object_id]
+        robot_state = state.object_states[self._robot_id]        
         if random.uniform(0,1) > self._pr_stay:
             # move adversarially
             candidate_actions = self._adversarial_actions(object_state.pose, robot_state.pose)
@@ -281,6 +285,7 @@ class AdversarialPolicy(StochaisticPolicy):
 
 # UNIT TESTS
 def unittest():
+    from search_and_rescue.models.grid_map import GridMap
     grid_map = GridMap(10, 10,
                        {0: (2,3), 5:(4,9)})
     motion_actions = create_motion_actions(can_stay=True)
@@ -293,9 +298,9 @@ def unittest():
     print(bmp.probability(next_object_state, state, action))
     print(bmp.random(state, action))    
 
-    adv = AdversarialPolicy(grid_map, 3, motion_actions=motion_actions)
-    print(adv.probability(next_object_state, state.object_states[4], state.object_states[3]))
-    print(adv.random(state.object_states[4], state.object_states[3]))    
+    adv = AdversarialPolicy(3, 4, grid_map, 3, motion_actions=motion_actions)
+    print(adv.probability(next_object_state, state))
+    print(adv.random(state))    
 
 if __name__ == '__main__':
     unittest()

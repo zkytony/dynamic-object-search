@@ -24,8 +24,11 @@ class StaticTransitionModel(pomdp_py.TransitionModel):
         return copy.deepcopy(state.object_states[self._objid])
 
 class DynamicTransitionModel(pomdp_py.TransitionModel):
-    def __init__(self, objid, motion_policy, epsilon=1e-9, is_agent=False):
+    def __init__(self, objid, motion_policy, epsilon=1e-9,
+                 is_agent=False, look_after_move=False):
         """
+        objid (int) The id of the object that this dynamics model is describing.
+                    It may or may not be the agent itself.
         is_agent (bool) True if this model describes the dynamics of the agent itself.
                         That means, the actions will be taken by this agent.
         """
@@ -33,6 +36,7 @@ class DynamicTransitionModel(pomdp_py.TransitionModel):
         self._motion_policy = motion_policy
         self._epsilon = epsilon
         self._is_agent = is_agent
+        self._look_after_move = look_after_move
         
     def probability(self, next_object_state, state, action):
         if self._is_agent:
@@ -43,34 +47,48 @@ class DynamicTransitionModel(pomdp_py.TransitionModel):
                                                    state)
 
     def sample(self, state, action, argmax=False):
-        if argmax:
-            sample_func = self._motion_policy.argmax
+        if isinstance(action, MotionAction):
+            if argmax:
+                sample_func = self._motion_policy.argmax
+            else:
+                sample_func = self._motion_policy.random
+
+            if self._is_agent:
+                next_object_state = sample_func(state, action)
+            else:
+                # The action taken by the agent is not relevant to sample the next
+                # position of this dynamic object which did not take the action.
+                # AT LEAST FOR NOW.
+                next_object_state = sample_func(state)
         else:
-            sample_func = self._motion_policy.random
-        if self._is_agent:
-            next_state = sample_func(state, action)
+            next_object_state = copy.deepcopy(state.object_states[self._objid])
+
+        if self._look_after_move\
+           or (isinstance(action, LookAction) or isinstance(action, FindAction)):
+            # Camera is turned on; The robot is looking
+            next_object_state["camera_on"] = True
         else:
-            # The action taken by the agent is not relevant to sample the next
-            # position of this dynamic object which did not take the action.
-            # AT LEAST FOR NOW.
-            next_state = sample_func(state)
-        return next_state
+            # Camera is turned off
+            next_object_state["camera_on"] = False
+        return next_object_state
+    
     
 class JointTransitionModel(pomdp_py.OOTransitionModel):
     def __init__(self,
                  agent_id,
                  static_object_ids,
                  dynamic_object_ids,
-                 motion_policies):
+                 motion_policies,
+                 look_after_move=False):
         self.object_ids = {"static": static_object_ids,
                            "dynamic": dynamic_object_ids}
         transition_models = {}
         for objid in static_object_ids:
             transition_models[objid] = StaticTransitionModel(objid)
         for objid in dynamic_object_ids:
-            transition_models[objid] = DynamicTransitionModel(objid, motion_policies[objid])
-        transition_models[agent_id] = DynamicTransitionModel(objid, motion_policies[agent_id],
-                                                             is_agent=True)
+            transition_models[objid] = DynamicTransitionModel(objid, motion_policies[objid],
+                                                              look_after_move=look_after_move,
+                                                              is_agent=objid == agent_id)
         super().__init__(transition_models)
         
     def motion_policy(self, objid):
@@ -95,7 +113,7 @@ def unittest():
                              {0,5}, {3,4},
                              {3: BasicMotionPolicy(3, grid_map, motion_actions),
                               4: AdversarialPolicy(4, 3, grid_map, 3, motion_actions=motion_actions)})
-    state = JointState({3: VictimState(3, (1,0), True),
+    state = JointState({3: VictimState(3, (1,0), False),
                         4: SearcherState(4, (4,4), (), True),
                         0: ObstacleState(0, (2,3)),
                         5: ObstacleState(5, (4,9))})
@@ -105,7 +123,10 @@ def unittest():
                              0: ObstacleState(0, (2,3)),
                              5: ObstacleState(5, (4,9))})
     print(t.probability(next_state, state, action))
-    print(t.sample(state, action))    
+    print("---OBJ 3 Move east---")
+    print(t.sample(state, action))
+    print("---OBJ 3 Look---")
+    print(t.sample(state, Look))    
 
 if __name__ == '__main__':
     unittest()

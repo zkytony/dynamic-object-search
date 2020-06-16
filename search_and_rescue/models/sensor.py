@@ -110,7 +110,7 @@ class Laser2DSensor(NoisySensor):
         if len(agent_pose) == 2:
             rx, ry = agent_pose
             rth = 0
-            print("HEY")
+            print("warn: manual assignment of rth=0")
         else:
             rx, ry, rth = agent_pose
         dist = euclidean_dist(point, (rx,ry))

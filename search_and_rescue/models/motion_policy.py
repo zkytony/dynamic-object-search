@@ -150,7 +150,8 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
         
 
 class BasicMotionPolicy(StochaisticPolicy):
-    """Adversarial Target motion policy."""
+    """Basic motion policy; No restriction on what motion action can be taken
+    other than being valid in the map."""
     def __init__(self, object_id, grid_map, motion_actions):
         self._object_id = object_id
         self._motion_actions = motion_actions
@@ -172,7 +173,9 @@ class BasicMotionPolicy(StochaisticPolicy):
 
     def random(self, state, action):
         """Given MosOOState, return ObjectState"""
-        next_object_state = copy.deepcopy(state.object_states[self._object_id])        
+        assert isinstance(action, MotionAction),\
+            "Motion policy only handles motion action"
+        next_object_state = copy.deepcopy(state.object_states[self._object_id])
         if action not in self._legal_actions[state.pose(self._object_id)]:
             # raise ValueError("Action %s cannot be taken in state %s" % (str(action), str(state)))
             # Action is not lega. Does not move.

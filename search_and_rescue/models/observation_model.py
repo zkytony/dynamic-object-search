@@ -76,7 +76,7 @@ def unittest():
 
     sensor = Laser2DSensor(3, fov=359, max_range=10, epsilon=0.8, sigma=0.2)
     o = SensorModel({3,4,0,5}, sensor, grid_map)
-    next_state = JointState({3: VictimState(3,   (4,8,math.pi), True),
+    next_state = JointState({3: VictimState(3, (4,8,math.pi), (), True),
                              4: SearcherState(4, (4,4), (), True),
                              0: ObstacleState(0, (2,3)),
                              5: ObstacleState(5, (4,9))})

@@ -8,10 +8,11 @@ from search_and_rescue.utils import *
 class PolicyModel(pomdp_py.RolloutPolicy):
     """Simple policy model. All actions are possible at any state."""
 
-    def __init__(self, robot_id, motion_policy=None,
+    def __init__(self, robot_id, role, motion_policy=None,
                  look_after_move=False):
         """FindAction can only be taken after LookAction"""
         self.robot_id = robot_id
+        self.role = role.lower()
         self.motion_policy = motion_policy
         self._look_after_move = look_after_move
         if self._look_after_move:
@@ -44,14 +45,17 @@ class PolicyModel(pomdp_py.RolloutPolicy):
 
     def get_all_actions(self, state=None, history=None):
         """note: find can only happen after look."""
-        can_find = True
-        if not self._look_after_move:
+        if self.role != "searcher":
             can_find = False
-            if history is not None and len(history) > 1:
-                # last action
-                last_action = history[-1][0]
-                if isinstance(last_action, LookAction):
-                    can_find = True
+        else:
+            can_find = True
+            if not self._look_after_move:
+                can_find = False
+                if history is not None and len(history) > 1:
+                    # last action
+                    last_action = history[-1][0]
+                    if isinstance(last_action, LookAction):
+                        can_find = True
         valid_motions = None        
         if state is not None and self.motion_policy is not None:
             valid_motions =\
@@ -68,9 +72,10 @@ class PolicyModel(pomdp_py.RolloutPolicy):
 # Preferred policy, action prior.    
 class PreferredPolicyModel(PolicyModel):
     """The same with PolicyModel except there is a preferred rollout policypomdp_py.RolloutPolicy"""
-    def __init__(self, action_prior, look_after_move=False):
+    def __init__(self, role, action_prior, look_after_move=False):
         self.action_prior = action_prior
-        super().__init__(self.action_prior.robot_id,
+        super().__init__(self.action_prior.agent_id,
+                         role,
                          self.action_prior.motion_policy,
                          look_after_move=look_after_move)
         
@@ -82,94 +87,62 @@ class PreferredPolicyModel(PolicyModel):
         else:
             return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
 
-    
+
 class GreedyActionPrior(pomdp_py.ActionPrior):
-    def __init__(self, robot_id, motion_policy, num_visits_init, val_init,
-                 look_after_move=False):
-        self.robot_id = robot_id
+    def __init__(self, agent_id, adversary_ids, motion_policy,
+                 num_visits_init, val_init, look_after_move=False,
+                 rule="avoid"):
+        """
+        Object `object_id` is trying to act adversarially against the robot `robot_id`.
+        It could be that object_id is chasing or avoiding the robot.
+        """
+        self.agent_id = agent_id
         self.motion_policy = motion_policy
         self.num_visits_init = num_visits_init
         self.val_init = val_init
         self._look_after_move = look_after_move
+        self._rule = rule
+        self.adversary_ids = adversary_ids
+        
 
     def get_preferred_actions(self, state, history):
-        """Get preferred actions. This can be used by a rollout policy as well."""
-        # Prefer actions that move the robot closer to any
-        # undetected target object in the state. If
-        # cannot move any closer, look. If the last
-        # observation contains an unobserved object, then Find.
-        if self.motion_policy.motion_actions is None:
-            raise ValueError("Unable to get preferred actions because"\
-                             "we don't know what motion actions there are.")
-        robot_state = state.object_states[self.robot_id]
+        object_state = state.object_states[self.agent_id]
 
-        if len(history) > 0:
+        # Should find
+        if hasattr(object_state, "objects_found") and len(history) > 0:
             last_action, last_observation = history[-1]
             for objid in last_observation.objposes:
-                if objid not in robot_state["objects_found"]\
+                if objid not in object_state["objects_found"]\
                    and last_observation.for_obj(objid).pose != ObjectObservation.NULL:
                     # We last observed an object that was not found. Then Find.
                     return set({(FindAction(), self.num_visits_init, self.val_init)})
 
+        # Look, or not?
         if self._look_after_move:
             # No Look action; It's embedded in Move.
             preferences = set()
         else:
             # Always give preference to Look
             preferences = set({(LookAction(), self.num_visits_init, self.val_init)})
-            
-        for objid in state.object_states:
-            if hasattr(robot_state, "objects_found") and objid in robot_state.objects_found:
-                # Object has been found; So no need to prefer actions for this object.
+
+        # Prefer motion actions that moves agent according to rule w.r.t. adversaries
+        neighbors = self.motion_policy.get_neighbors(state.pose(self.agent_id),
+                                                     self.motion_policy.motion_actions)        
+        for adv_id in self.adversary_ids:
+            if hasattr(object_state, "objects_found") and adv_id in object_state["objects_found"]:
                 continue
-            if objid != self.robot_id:
-                object_pose = state.pose(objid)
-                cur_dist = euclidean_dist(robot_state.pose, object_pose)
-                neighbors = self.motion_policy.get_neighbors(robot_state.pose,
-                                                     self.motion_policy.motion_actions)
-                for next_robot_pose in neighbors:
-                    motion_action = neighbors[next_robot_pose]
-                    next_dist = euclidean_dist(next_robot_pose,
-                                               object_pose)
+            cur_dist = euclidean_dist(state.pose(self.agent_id),
+                                      state.pose(adv_id))
+            for next_object_pose in neighbors:
+                motion_action = neighbors[next_object_pose]
+                next_dist = euclidean_dist(next_object_pose,
+                                           state.pose(adv_id))
+                if self._rule == "avoid":
+                    if next_dist > cur_dist:
+                        preferences.add((motion_action, self.num_visits_init, self.val_init))
+                elif self._rule == "chase":
                     if next_dist < cur_dist:
-                        preferences.add((motion_action,
-                                         self.num_visits_init, self.val_init))
-        return preferences
-
-
-class AdversarialActionPrior(pomdp_py.ActionPrior):
-    def __init__(self, object_id, robot_id, motion_policy,
-                 num_visits_init, val_init, look_after_move=False):
-        """
-        Object `object_id` is trying to act adversarially against the robot `robot_id`.
-        """
-        self.object_id = object_id
-        self.robot_id = robot_id
-        self.motion_policy = motion_policy
-        self.num_visits_init = num_visits_init
-        self.val_init = val_init
-        self._look_after_move = look_after_move
-
-    def get_preferred_actions(self, state, history):
-        # Prefer actions that move the target away from the robot.
-        cur_dist = euclidean_dist(state.pose(self.object_id),
-                                  state.pose(self.robot_id))
-        
-        if self._look_after_move:
-            # No Look action; It's embedded in Move.
-            preferences = set()
-        else:
-            # Always give preference to Look
-            preferences = set({(LookAction(), self.num_visits_init, self.val_init)})
-
-        neighbors = self.motion_policy.get_neighbors(state.pose(self.object_id),
-                                                     self.motion_policy.motion_actions)
-        for next_object_pose in neighbors:
-            motion_action = neighbors[next_object_pose]
-            next_dist = euclidean_dist(next_object_pose,
-                                       state.pose(self.robot_id))
-            if next_dist > cur_dist:
-                preferences.add((motion_action, self.num_visits_init, self.val_init))
+                        preferences.add((motion_action, self.num_visits_init, self.val_init))
         return preferences
             
     
@@ -180,26 +153,28 @@ def unittest():
                        {0: (2,3), 5:(4,9)})
     motion_actions = create_motion_actions(can_stay=True)    
     bmp = BasicMotionPolicy(3, grid_map, motion_actions)
-    policy_model = PolicyModel(3, bmp, look_after_move=False)
-    state = JointState({3: VictimState(3,   (4,8,math.pi), True),
+    policy_model = PolicyModel(3, "victim", bmp, look_after_move=False)
+    state = JointState({3: VictimState(3,   (4,8,math.pi), (), True),
                         4: SearcherState(4, (4,4), (), True),
                         0: ObstacleState(0, (2,3)),
                         5: ObstacleState(5, (4,9))})
     print(policy_model.get_all_actions(state=state))
     print(policy_model.sample(state))
     
-    greedy_action_prior = GreedyActionPrior(4, bmp, 10, 100, look_after_move=False)
-    adversarial_action_prior = AdversarialActionPrior(3, 4, bmp, 10, 100, look_after_move=False)
-    greedy_preferred = PreferredPolicyModel(greedy_action_prior,
-                                            look_after_move=False)
-    adversarial_preferred = PreferredPolicyModel(adversarial_action_prior,
-                                                 look_after_move=False)
-    print("Greedy preferred actions:")
-    print(greedy_preferred.rollout(state, ()))
-    print(greedy_preferred.action_prior.get_preferred_actions(state, ()))
-    print("Adversarial preferred actions:")
-    print(adversarial_preferred.rollout(state, ()))
-    print(adversarial_preferred.action_prior.get_preferred_actions(state, ()))    
+    avoid_action_prior = GreedyActionPrior(3, {4}, bmp, 10, 100, look_after_move=False, rule="avoid")
+    chase_action_prior = GreedyActionPrior(4, {3}, bmp, 10, 100, look_after_move=False, rule="chase")
+    avoid_preferred = PreferredPolicyModel("victim",
+                                           avoid_action_prior,
+                                           look_after_move=False)
+    chase_preferred = PreferredPolicyModel("searcher",
+                                           chase_action_prior,
+                                           look_after_move=False)                                           
+    print("Avoid preferred actions:")
+    print(avoid_preferred.rollout(state, ()))
+    print(avoid_preferred.action_prior.get_preferred_actions(state, ()))
+    print("Chase preferred actions:")
+    print(chase_preferred.rollout(state, ()))
+    print(chase_preferred.action_prior.get_preferred_actions(state, ()))    
 
 
 if __name__ == '__main__':

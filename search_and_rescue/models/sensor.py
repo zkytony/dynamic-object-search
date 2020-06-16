@@ -9,11 +9,6 @@ from search_and_rescue.utils import *
 class NoisySensor(pomdp_py.GenerativeDistribution):
     LASER = "laser"
     PROXIMITY = "proximity"
-    def observe(self, agent_pose, env_state):
-        """
-        Returns an Observation with this sensor model.
-        """
-        raise NotImplementedError
 
     def within_range(self, agent_pose, point):
         """Returns true if the point is within range of the sensor; but the point might not

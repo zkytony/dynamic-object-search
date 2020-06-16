@@ -176,7 +176,7 @@ class BasicMotionPolicy(StochaisticPolicy):
         assert isinstance(action, MotionAction),\
             "Motion policy only handles motion action"
         next_object_state = copy.deepcopy(state.object_states[self._object_id])
-        if action not in self._legal_actions[state.pose(self._object_id)]:
+        if action not in self._legal_actions[state.pose(self._object_id)[:2]]:
             # raise ValueError("Action %s cannot be taken in state %s" % (str(action), str(state)))
             # Action is not lega. Does not move.
             return next_object_state
@@ -219,7 +219,7 @@ class AdversarialPolicy(StochaisticPolicy):
                     candidate_actions.append(action)
         elif self._rule == "avoid":
             cur_dist = euclidean_dist(robot_pose, object_pose)
-            for action in self._legal_actions[object_pose]:
+            for action in self._legal_actions[object_pose[:2]]:
                 next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
                 if next_dist > cur_dist:
                     candidate_actions.append(action)
@@ -289,6 +289,11 @@ class AdversarialPolicy(StochaisticPolicy):
         return next_object_state
 
 
+class MixedPolicy(StochaisticPolicy):
+    def __init__(self, object_id, motion_policies):
+        pass
+
+
 # UNIT TESTS
 def unittest():
     from search_and_rescue.models.grid_map import GridMap
@@ -298,7 +303,7 @@ def unittest():
     
     bmp = BasicMotionPolicy(4, grid_map, motion_actions)
     next_object_state = SearcherState(4, (4,5), (), True)
-    state = JointState({3: VictimState(3, (1,0), True),
+    state = JointState({3: VictimState(3, (1,0), (), True),
                         4: SearcherState(4, (4,4), (), True)})
     action = MoveSouth
     print(bmp.probability(next_object_state, state, action))

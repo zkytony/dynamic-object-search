@@ -23,28 +23,21 @@ class StaticTransitionModel(pomdp_py.TransitionModel):
         """Returns the most likely next object_state"""
         return copy.deepcopy(state.object_states[self._objid])
 
-class DynamicTransitionModel(pomdp_py.TransitionModel):
-    def __init__(self, objid, motion_policy, epsilon=1e-9,
-                 is_agent=False, look_after_move=False):
+class DynamicAgentTransitionModel(pomdp_py.TransitionModel):
+    def __init__(self, agent_id, motion_policy, sensor, epsilon=1e-9, look_after_move=False):
         """
-        objid (int) The id of the object that this dynamics model is describing.
-                    It may or may not be the agent itself.
-        is_agent (bool) True if this model describes the dynamics of the agent itself.
-                        That means, the actions will be taken by this agent.
+        The agent is taking the actions.
+        agent_id (int) The id of the agent that this dynamics model is describing.
         """
-        self._objid = objid
+        self._agent_id = agent_id
         self._motion_policy = motion_policy
         self._epsilon = epsilon
-        self._is_agent = is_agent
         self._look_after_move = look_after_move
+        self._sensor = sensor
         
     def probability(self, next_object_state, state, action):
-        if self._is_agent:
-            return self._motion_policy.probability(next_object_state,
-                                                   state, action)
-        else:
-            return self._motion_policy.probability(next_object_state,
-                                                   state)
+        return self._motion_policy.probability(next_object_state,
+                                               state, action)
 
     def sample(self, state, action, argmax=False):
         if isinstance(action, MotionAction):
@@ -52,43 +45,94 @@ class DynamicTransitionModel(pomdp_py.TransitionModel):
                 sample_func = self._motion_policy.argmax
             else:
                 sample_func = self._motion_policy.random
-
-            if self._is_agent:
-                next_object_state = sample_func(state, action)
-            else:
-                # The action taken by the agent is not relevant to sample the next
-                # position of this dynamic object which did not take the action.
-                # AT LEAST FOR NOW.
-                next_object_state = sample_func(state)
+                
+            next_object_state = sample_func(state, action)
+            # else:
+            #     # The action taken by the agent is not relevant to sample the next
+            #     # position of this dynamic object which did not take the action.
+            #     # AT LEAST FOR NOW.
+            #     next_object_state = sample_func(state)
         else:
-            next_object_state = copy.deepcopy(state.object_states[self._objid])
+            next_object_state = copy.deepcopy(state.object_states[self._agent_id])
 
         if self._look_after_move\
            or (isinstance(action, LookAction) or isinstance(action, FindAction)):
             # Camera is turned on; The robot is looking
             next_object_state["camera_on"] = True
+
+            detectables = self._detectables(state, self._sensor)
+            if hasattr(next_object_state, "fov_objects"):
+                # The object state is not searcher.
+                # Updating the objects in the field of view because the robot is looking.
+                next_object_state["fov_objects"] = tuple(detectables)
+            else:
+                # The object state is a searcher, not victim/suspect.
+                if isinstance(action, FindAction):
+                    next_object_state["objects_found"] =\
+                    tuple(set(next_object_state["objects_found"]) | detectables)
         else:
             # Camera is turned off
             next_object_state["camera_on"] = False
+        next_object_state["time"] = state.object_states[self._agent_id]["time"] + 1
         return next_object_state
-    
+
+    def _detectables(self, state, sensor):
+        result = set({})
+        for objid in state.object_states:
+            if objid == self._agent_id:
+                continue
+            if sensor.within_range(state.pose(self._agent_id), state.pose(objid)):
+                result.add(objid)
+        return result
+
+class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
+
+    """
+    For now, the dynamics of an object is independent from 
+    all other objects
+    """
+
+    def __init__(self, objid, motion_policy, epsilon=1e-9):
+        self._objid = objid
+        self._motion_policy = motion_policy
+        self._epsilon = epsilon
+
+    def probability(self, next_object_state, state, *args):
+        return self._motion_policy.probability(next_object_state, state)
+
+    def sample(self, state, *args, argmax=False):
+        if argmax:
+            sample_func = self._motion_policy.argmax
+        else:
+            sample_func = self._motion_policy.random
+        next_object_state = sample_func(state)
+        next_object_state["time"] = state.object_states[self._objid]["time"] + 1
+        return next_object_state
+
+    def argmax(self, state, *args):
+        return self.sample(state, argmax=True)        
+
     
 class JointTransitionModel(pomdp_py.OOTransitionModel):
     def __init__(self,
                  agent_id,
+                 sensor,
                  static_object_ids,
                  dynamic_object_ids,
                  motion_policies,
                  look_after_move=False):
         self.object_ids = {"static": static_object_ids,
                            "dynamic": dynamic_object_ids}
-        transition_models = {}
+        transition_models = {
+            agent_id: DynamicAgentTransitionModel(agent_id,
+                                                  motion_policies[agent_id],
+                                                  sensor,
+                                                  look_after_move=look_after_move)}
         for objid in static_object_ids:
             transition_models[objid] = StaticTransitionModel(objid)
         for objid in dynamic_object_ids:
-            transition_models[objid] = DynamicTransitionModel(objid, motion_policies[objid],
-                                                              look_after_move=look_after_move,
-                                                              is_agent=objid == agent_id)
+            if objid != agent_id:
+                transition_models[objid] = DynamicObjectTransitionModel(objid, motion_policies[objid])
         super().__init__(transition_models)
         
     def motion_policy(self, objid):
@@ -106,27 +150,68 @@ class JointTransitionModel(pomdp_py.OOTransitionModel):
 def unittest():
     from search_and_rescue.models.motion_policy import BasicMotionPolicy, AdversarialPolicy
     from search_and_rescue.models.grid_map import GridMap
+    from search_and_rescue.models.sensor import Laser2DSensor
+    from search_and_rescue.models.observation_model import SensorModel
     grid_map = GridMap(10, 10,
                        {0: (2,3), 5:(4,9)})
     motion_actions = create_motion_actions(can_stay=True)
-    t = JointTransitionModel(3,
-                             {0,5}, {3,4},
+    sensor = Laser2DSensor(4, fov=359, max_range=10, epsilon=0.8, sigma=0.2)
+    t3 = JointTransitionModel(3, sensor,
+                             {0,5}, {3,4,6},
                              {3: BasicMotionPolicy(3, grid_map, motion_actions),
-                              4: AdversarialPolicy(4, 3, grid_map, 3, motion_actions=motion_actions)})
-    state = JointState({3: VictimState(3, (1,0), False),
-                        4: SearcherState(4, (4,4), (), True),
+                              4: AdversarialPolicy(4, 6, grid_map, 3, motion_actions=motion_actions, rule="chase"),
+                              6: AdversarialPolicy(6, 3, grid_map, 3, motion_actions=motion_actions)})
+    
+    t4 = JointTransitionModel(4, sensor,
+                              {0,5}, {3,4,6},
+                              {4: BasicMotionPolicy(4, grid_map, motion_actions),
+                               3: AdversarialPolicy(3, 6, grid_map, 3, motion_actions=motion_actions),
+                               6: AdversarialPolicy(6, 4, grid_map, 3, motion_actions=motion_actions)})
+
+    t6 = JointTransitionModel(6, sensor,
+                              {0,5}, {3,4,6},
+                              {6: BasicMotionPolicy(6, grid_map, motion_actions),
+                               3: AdversarialPolicy(3, 4, grid_map, 3, motion_actions=motion_actions),
+                               4: AdversarialPolicy(4, 6, grid_map, 3, motion_actions=motion_actions, rule="chase")})
+    
+    state = JointState({3: VictimState(3, (1,0,0), (), False),
+                        4: SearcherState(4, (4,4,math.pi/2), (), True),
+                        6: SuspectState(6, (4,8,math.pi*2/3), (), True),
                         0: ObstacleState(0, (2,3)),
                         5: ObstacleState(5, (4,9))})
-    action = MoveEast
-    next_state = JointState({3: VictimState(3, (2,0), True),
-                             4: SearcherState(4, (4,4), (), True),
-                             0: ObstacleState(0, (2,3)),
-                             5: ObstacleState(5, (4,9))})
-    print(t.probability(next_state, state, action))
-    print("---OBJ 3 Move east---")
-    print(t.sample(state, action))
-    print("---OBJ 3 Look---")
-    print(t.sample(state, Look))    
+    print("state:")
+    print(state)
+    print("OBJ 3 Victim moves from state")
+    print(t3.sample(state, MoveEast))
+    print("OBJ 4 Searcher moves from state")
+    print(t4.sample(state, MoveEast))
+    print("OBJ 6 Suspect moves from state")
+    print(t6.sample(state, MoveEast))
+
+    sp4 = t4.sample(state, MoveEast)
+    assert isinstance(sp4.object_states[4], SearcherState)
+    assert sp4.object_states[4]["camera_on"] is False
+
+    # Searcher will Look and Find.
+    o = SensorModel({3,4,6,0,5}, sensor, grid_map)
+    print("\nOBJ 4 Searcher Look and Find")
+    print("  Observation: ", o.sample(state, Look))
+    print("  Look transition: ", t4.sample(state, Look).object_states[4])
+    print("  Find transition: ", t4.sample(state, Find).object_states[4])    
+
+    # Victim will Look
+    sensor = Laser2DSensor(3, fov=359, max_range=10, epsilon=0.8, sigma=0.2)    
+    o = SensorModel({3,4,6,0,5}, sensor, grid_map)
+    print("\nOBJ 3 Victim Look")
+    print("  Observation: ", o.sample(state, Look))
+    print("  Look transition: ", t3.sample(state, Look).object_states[3])
+
+    # Suspect will Look
+    sensor = Laser2DSensor(6, fov=359, max_range=10, epsilon=0.8, sigma=0.2)
+    o = SensorModel({3,4,6,0,5}, sensor, grid_map)    
+    print("\nOBJ 6 Suspect Look")
+    print("  Observation: ", o.sample(state, Look))
+    print("  Look transition: ", t6.sample(state, Look).object_states[6])
 
 if __name__ == '__main__':
     unittest()

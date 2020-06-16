@@ -54,6 +54,10 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
         return self._motion_actions
 
     @property
+    def grid_map(self):
+        return self._grid_mapx
+
+    @property
     def legal_actions(self):
         return self._legal_actions
 
@@ -69,7 +73,7 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
             if not isinstance(motion_action, MotionAction):
                 raise ValueError("This (%s) is not a motion action" % str(motion_action))
 
-            next_robot_pose = next_pose(robot_pose, motion_action)
+            next_robot_pose = next_pose(robot_pose, motion_action.motion)
             if (next_robot_pose[:2] in self._grid_map.obstacle_poses)\
                or (not self._grid_map.within_bounds(next_robot_pose)):
                 next_robot_pose = robot_pose
@@ -91,10 +95,11 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
             if not isinstance(motion_action, MotionAction):
                 raise ValueError("This (%s) is not a motion action" % str(motion_action))
 
-            next_robot_pose = next_pose(pose, motion_action)
+            next_robot_pose = next_pose(pose, motion_action.motion)
             if (next_robot_pose[:2] not in self._grid_map.obstacle_poses)\
                and (self._grid_map.within_bounds(next_robot_pose)):
-                neighbors[next_robot_pose[:2]] = motion_action
+                
+                neighbors[next_robot_pose] = motion_action
         return neighbors
     
     def path_between(self, position1, position2, all_motion_actions, return_actions=True):

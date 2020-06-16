@@ -1,5 +1,5 @@
 import pomdp_py
-from search_and_rescue.env.action import ActionCollection
+from search_and_rescue.env.action import *
 from search_and_rescue.env.state import *
 from search_and_rescue.models.motion_policy import BasicMotionPolicy
 from search_and_rescue.models.transition_model import *
@@ -10,39 +10,64 @@ class MultiAgentRewardModel(pomdp_py.RewardModel):
     def __init__(self, reward_models):
         self._reward_models = reward_models
 
+    def __contains__(self, objid):
+        return objid in self._reward_models
+
     def sample(self, state, action, next_state, agent_id=None):
         return self._reward_models[agent_id].sample(state, action, next_state)
 
 class SAREnvironment(pomdp_py.Environment):
     def __init__(self,
                  role_to_ids,
+                 grid_map,
                  init_state,
                  transition_model,
                  reward_model):
         self._role_to_ids = role_to_ids
+        self.grid_map = grid_map
         super().__init__(init_state,
                          transition_model,
                          reward_model)
 
     def state_transition(self, action, execute=True):
         assert isinstance(action, ActionCollection)
+        
         next_state = copy.deepcopy(self.state)
-        for objid in self.state.object_states:
-            if objid in self.transition_model.transition_models\
-               and action[objid] is not None:
-                if objid in self.state.robot_state["objects_found"]:
-                    continue
-                next_object_state = self.transition_model[objid].sample(self.state, action[objid])
-                next_state.set_object_state(objid, next_object_state)
-
-        reward = self.reward_model.sample(self.state, action[self._robot_id], next_state,
-                                          robot_id=self._robot_id)
+        active_agents = set(next_state.active_agents)
+        # First, check which agents are still active;
+        # FOR RIGHT NOW:
+        # A searcher never becomes inactive;
+        # A suspect becomes inactive when it falls into the objects_found set of the searcher
+        # A victim becomes inactive when it falls into the fov_objects set of the suspect
+        rewards = {}
+        for agent_id in action.actions:
+            next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])                            
+            if isinstance(action[agent_id], FindAction):
+                for found_agent_id in next_object_state["objects_found"]:
+                    active_agents.remove(found_agent_id)
+            else:
+                if self.role_for(agent_id) == "suspect":
+                    for fov_agent_id in next_object_state["fov_objects"]:
+                        if fov_agent_id in self._role_to_ids["victim"]:
+                            active_agents.remove(fov_agent_id)
+            next_state.set_object_state(agent_id, next_object_state)
+            if agent_id in self.reward_model:
+                rewards[agent_id] = self.reward_model.sample(
+                    self.state, action[agent_id], next_state,
+                    agent_id=agent_id)
+        next_state.active_agents = active_agents
         if execute:
             self.apply_transition(next_state)
-            return reward
+            return rewards
 
         else:
-            return next_state, reward
+            return next_state, rewards
+
+    def ids_for(self, role):
+        return self._role_to_ids[role]
+
+    def role_for(self, objid):
+        return self.state.object_states[objid].objclass
         
     @classmethod
     def construct(self, role_to_ids, init_object_states,
@@ -51,32 +76,14 @@ class SAREnvironment(pomdp_py.Environment):
         assert len(role_to_ids["searcher"]) <= 1, "Currently, only one searcher is allowed."
         if "target" not in role_to_ids:
             role_to_ids["target"] = set()
-
-        # object_states = {}
-        # for searcher_id in role_to_ids["searcher"]:
-        #     object_states[searcher_id] = SearcherState(searcher_id,
-        #                                                init_poses[searcher_id],
-        #                                                (), False, time=-1)
-        # for victim_id in role_to_ids["victim"]:
-        #     object_states[victim_id] = VictimState(victim_id,
-        #                                            init_poses[victim_id],
-        #                                            False, time=-1)
-        # for suspect_id in role_to_ids["suspect"]:
-        #     object_states[suspect_id] = SuspectState(suspect_id,
-        #                                              init_poses[suspect_id],
-        #                                              False, time=-1)
-        # for obstacle_id in grid_map.obstacles:
-        #     object_states[obstacle_id] = ObstacleState(obstacle_id,
-        #                                                grid_map.obstaceles[obstacle_id])
-        init_state = JointState(init_object_states)
-
+            
         static_object_ids = set(grid_map.obstacles.keys()) | role_to_ids["target"]
         dynamic_object_ids = role_to_ids["searcher"] | role_to_ids["victim"] | role_to_ids["suspect"]
 
         # The transition models of the environment; OOTransitionmodel, but not agent-specific
         transition_models = {}
         reward_models = {}
-        for objid in init_state.object_states:
+        for objid in init_object_states:
             if objid in static_object_ids:
                 t = StaticTransitionModel(objid)
             else:
@@ -94,7 +101,12 @@ class SAREnvironment(pomdp_py.Environment):
             reward_models[objid] = r
         tmodel = pomdp_py.OOTransitionModel(transition_models)
         rmodel = MultiAgentRewardModel(reward_models)
-        return SAREnvironment(role_to_ids, init_state, tmodel, rmodel)
+
+        init_state = EnvState(
+            tuple(role_to_ids["searcher"] | role_to_ids["victim"] | role_to_ids["suspect"]),
+            JointState(init_object_states)
+        )
+        return SAREnvironment(role_to_ids, grid_map, init_state, tmodel, rmodel)
 
 
 #### Interpret string as an initial world state ####
@@ -173,24 +185,24 @@ def interpret(worldstr):
             elif c.isupper():
                 if c == "R":
                     # searcher
-                    objid = len(objects) + 7000
+                    objid = len(role_to_ids["searcher"]) + 7000
                     robots[objid] = SearcherState(objid, (x,y,0), (), False)
                     role_to_ids["searcher"].add(objid)
                     
                 elif c == "V":
                     # victim
-                    objid = len(objects) + 3000
+                    objid = len(role_to_ids["victim"]) + 3000
                     robots[objid] = VictimState(objid, (x,y,0), (), False)
                     role_to_ids["victim"].add(objid)                    
                     
                 elif c == "S":
                     # suspect
-                    objid = len(objects) + 5000
+                    objid = len(role_to_ids["suspect"]) + 5000
                     robots[objid] = SuspectState(objid, (x,y,0), (), False)
                     role_to_ids["suspect"].add(objid)
                     
                 else:
-                    objid = len(objects)
+                    objid = len(role_to_ids["target"])
                     objects[objid] = TargetState(objid, (x,y))
                     role_to_ids["target"].add(objid)
 

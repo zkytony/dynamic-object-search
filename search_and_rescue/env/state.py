@@ -71,3 +71,20 @@ class JointState(pomdp_py.OOState):
         return 'JointState(%s)' % (str(self.object_states))
     def __repr__(self):
         return str(self)    
+
+class EnvState(pomdp_py.State):
+    def __init__(self, active_agents, joint_state):
+        self.active_agents = active_agents
+        self.joint_state = joint_state
+    @property
+    def object_states(self):
+        return self.joint_state.object_states
+    def __str__(self):
+        return 'EnvState(\n  active: %s\n  joint state: %s)'\
+            % (str(self.active_agents), str(self.object_states))
+    def __repr__(self):
+        return str(self)    
+    def set_object_state(self, objid, object_state):
+        self.joint_state.set_object_state(objid, object_state)
+    def pose(self, objid):
+        return self.object_states[objid]["pose"]        

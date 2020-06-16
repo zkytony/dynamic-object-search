@@ -12,26 +12,29 @@ class SARRewardModel:
         if "victim" not in role_to_ids:
             role_to_ids["victim"] = set()
         if "searcher" not in role_to_ids:
-            role_to_ids["searcher"] = set()                   
+            role_to_ids["searcher"] = set()
+        if "target" not in role_to_ids:
+            role_to_ids["target"] = set()
         self._role_to_ids = role_to_ids
 
     def sample(self, state, action, next_state):
         # deterministic
-        return self._reward_func(state, action, next_state,
-                                 role_to_ids=self._role_to_ids)
+        return self._reward_func(state, action, next_state)
 
 class SearcherRewardModel(SARRewardModel):
     """
     This is a reward where the agent gets reward only for detect-related actions.
     """
-    def _reward_func(self, state, action, next_state, role_to_ids):
+    def __init__(self, agent_id, big=100, small=1, role_to_ids={}):
+        super().__init__(agent_id, big=big, small=small, role_to_ids=role_to_ids)
+        self._target_ids = self._role_to_ids["suspect"]\
+            | self._role_to_ids["victim"] | self._role_to_ids["target"]
+        
+    def _reward_func(self, state, action, next_state):
         reward = 0
-
-        target_ids = role_to_ids["suspect"] | role_to_ids["victim"]
-
         # Detected all objects
         if len(state.object_states[self._agent_id]['objects_found'])\
-           == len(target_ids):
+           == len(self._target_ids):
             return 0  # no reward or penalty; the task is finished.
 
         if isinstance(action, MotionAction):
@@ -60,11 +63,11 @@ class SearcherRewardModel(SARRewardModel):
 class SuspectRewardModel(SARRewardModel):
     """Adversarial agent reward model"""
 
-    def _reward_func(self, state, action, next_state, role_to_ids):
+    def _reward_func(self, state, action, next_state):
         # If fov objects contains searcher, then bad.
         # If fov objects contains only victim, then good.
         # Otherwise, -small
-        for searcher_id in role_to_ids["searcher"]:
+        for searcher_id in self._role_to_ids["searcher"]:
             cur_seen_searcher = searcher_id in state.object_states[self._agent_id]["fov_objects"]
             next_seen_searcher = searcher_id in next_state.object_states[self._agent_id]["fov_objects"]            
             
@@ -72,7 +75,7 @@ class SuspectRewardModel(SARRewardModel):
                 return -self.big
             elif cur_seen_searcher and next_seen_searcher:
                 return -self.small
-        for victim_id in role_to_ids["victim"]:
+        for victim_id in self._role_to_ids["victim"]:
             cur_seen_victim = victim_id in state.object_states[self._agent_id]["fov_objects"]
             next_seen_victim = victim_id in next_state.object_states[self._agent_id]["fov_objects"]
             if not cur_seen_victim and next_seen_victim:
@@ -83,11 +86,11 @@ class SuspectRewardModel(SARRewardModel):
 class VictimRewardModel(SARRewardModel):
     """Adversarial agent reward model"""
 
-    def _reward_func(self, state, action, next_state, role_to_ids):
+    def _reward_func(self, state, action, next_state):
         # If fov objects contains searcher, then good.
         # If fov objects contains suspect, then bad.
         # Otherwise, -small
-        for searcher_id in role_to_ids["searcher"]:
+        for searcher_id in self._role_to_ids["searcher"]:
             cur_seen_searcher = searcher_id in state.object_states[self._agent_id]["fov_objects"]
             next_seen_searcher = searcher_id in next_state.object_states[self._agent_id]["fov_objects"]            
             
@@ -95,7 +98,7 @@ class VictimRewardModel(SARRewardModel):
                 return self.big
             elif cur_seen_searcher and next_seen_searcher:
                 return -self.small
-        for suspect_id in role_to_ids["suspect"]:
+        for suspect_id in self._role_to_ids["suspect"]:
             cur_seen_suspect = suspect_id in state.object_states[self._agent_id]["fov_objects"]
             next_seen_suspect = suspect_id in next_state.object_states[self._agent_id]["fov_objects"]
             if not cur_seen_suspect and next_seen_suspect:
@@ -158,3 +161,5 @@ def unittest():
 if __name__ == '__main__':
     unittest()
         
+
+    

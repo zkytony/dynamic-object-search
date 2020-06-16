@@ -5,8 +5,11 @@ import cv2
 import math
 import numpy as np
 import random
+import copy
 from search_and_rescue.env.env import *
 from search_and_rescue.env.action import *
+from dynamic_mos.experiments.world_types import *
+from dynamic_mos.example_worlds import place_objects
 
 # Deterministic way to get object color
 def object_color(objid, count):
@@ -92,6 +95,10 @@ class SARViz:
     @property
     def last_observation(self):
         return self._last_observation
+
+    @property
+    def controller_id(self):
+        return self._controller_id
     
     def update(self, agent_id, action, observation, viz_observation, belief):
         """
@@ -119,7 +126,7 @@ class SARViz:
 
     @staticmethod
     def draw_observation(img, z, rx, ry, rth, r, size, color=(12,12,255)):
-        assert type(z) == MosOOObservation, "%s != MosOOObservation" % (str(type(z)))
+        assert type(z) == JointObservation, "%s != JointObservation" % (str(type(z)))
         radius = int(round(r / 2))
         for objid in z.objposes:
             if z.for_obj(objid).pose != ObjectObservation.NULL:
@@ -179,23 +186,28 @@ class SARViz:
         # self._display_surf.blit(self._background, (0, 0))
         img = self.render_env(self._display_surf)
         caption = "FPS: {0:.2f}".format(self._clock.get_fps())
+        caption += " | " + self.ctrl_status()
+        pygame.display.set_caption(caption)
+        pygame.display.flip()
+        return img
+
+    def ctrl_status(self):
+        status = ""
         if self._controller_id is not None:
-            caption += " | controlling: %d (%s)" % (self._controller_id,
+            status += "controlling: %d (%s)" % (self._controller_id,
                                                     self._env.role_for(self._controller_id))
             # last action
             last_action = self._last_action.get(self._controller_id, None)
             last_action_str = "no_action" if last_action is None else str(last_action)
-            caption += " | %s" % last_action_str
+            status += " | %s" % last_action_str
 
             # set
             state_controlled = self._env.state.object_states[self._controller_id]
             if hasattr(state_controlled, "fov_objects"):
-                caption += " | %s" % str(state_controlled.fov_objects)
+                status += " | %s" % str(state_controlled.fov_objects)
             elif hasattr(state_controlled, "objects_found"):
-                caption += " | %s" % str(state_controlled.objects_found)
-        pygame.display.set_caption(caption)
-        pygame.display.flip()
-        return img
+                status += " | %s" % str(state_controlled.objects_found)
+        return status
 
     def render_single_agent(self, img, objid, pose, res):
         rx, ry, rth = pose
@@ -275,11 +287,9 @@ class SARViz:
                 robot_id = self._controller_id
             if action is None:
                 return
-
-            if isinstance(action, MotionAction):
-                reward = self._env.state_transition(ActionCollection({robot_id:action}),
-                                                    execute=True)
-                
+            # if isinstance(action, MotionAction):
+            #     reward = self._env.state_transition(ActionCollection({robot_id:action}),
+            #                                         execute=True)
             #     z = None
             # elif isinstance(action, LookAction) or isinstance(action, FindAction):
             #     robot_pose = self._env.state.pose(robot_id)
@@ -301,13 +311,15 @@ class SARViz:
     def on_cleanup(self):
         pygame.quit()
  
-    def on_execute(self):
+    def on_execute(self, action_callback):
         if self.on_init() == False:
             self._running = False
  
         while( self._running ):
             for event in pygame.event.get():
-                self.on_event(event)
+                action = self.on_event(event)
+                if action is not None:
+                    action_callback(self, self._env, action)
             self.on_loop()
             self.on_render()
         self.on_cleanup()
@@ -320,11 +332,43 @@ Rx...
 .x.xV
 .S...    
 """
+def action_callback(viz, env, action):
+    # State transition
+    rewards = env.state_transition(ActionCollection({viz.controller_id: action}),
+                                                    execute=True)
+    # Sample observation
+    z = {}      # shows only relevant object
+    for objid in env.state.object_states:
+        if objid == viz.controller_id:
+            continue
+        z[objid] = env.sensors[viz.controller_id].random(env.state,
+                                                         action,
+                                                         object_id=objid).pose
+    observation = JointObservation(z)  # z is objposes
+
+    # Update visualization
+    viz_state = {}
+    z_viz = {}  # shows the whole FOV
+    for x in range(env.grid_map.width):
+        for y in range(env.grid_map.length):
+            viz_objid = len(viz_state)
+            viz_state[viz_objid] = ObstacleState(viz_objid, (x,y))
+    viz_state[viz.controller_id] = copy.deepcopy(env.state.object_states[viz.controller_id])
+    viz_state = JointState(viz_state)
+    for objid in viz_state.object_states:
+        z_viz[objid] = env.sensors[viz.controller_id].random(viz_state,
+                                                             action,
+                                                             object_id=objid).pose
+    observation_fov = JointObservation(z_viz)
+    viz.update(viz.controller_id, action, observation, observation_fov, None)
+    print(viz.ctrl_status())    
+    
+
 def unittest(worldstr):
     from search_and_rescue.models.grid_map import GridMap
     from search_and_rescue.env.action import create_motion_actions
 
-    laserstr = make_laser_sensor(90, (1, 50), 0.5, False)
+    laserstr = make_laser_sensor(90, (1, 3), 0.5, False)
     worldstr = equip_sensors(worldstr, {"S": laserstr,
                                         "V": laserstr,
                                         "R": laserstr})
@@ -337,9 +381,18 @@ def unittest(worldstr):
                                    {**robots, **objects},
                                    grid_map, motion_actions, sensors,
                                    look_after_move=True)
-    print(env.state)
-    viz = SARViz(env, res=30, fps=30, controller_id=3000)
-    viz.on_execute()    
+    viz = SARViz(env, res=30, fps=30, controller_id=5000)
+    viz.on_execute(action_callback)    
 
 if __name__ == '__main__':
-    unittest(worldstr)
+    mapstr, free_locations = create_free_world(6,6)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+    
+    searcher_pose = random.sample(free_locations, 1)[0]
+    victim_pose = random.sample(free_locations - {searcher_pose}, 1)[0]
+    suspect_pose = random.sample(free_locations - {victim_pose, searcher_pose}, 1)[0]
+
+    mapstr = place_objects(mapstr,
+                           {"R": searcher_pose,
+                            "V": victim_pose,
+                            "S": suspect_pose})
+    unittest(mapstr)

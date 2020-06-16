@@ -276,7 +276,7 @@ class Laser2DSensor(NoisySensor):
                            "B": beta,
                            "C": gamma}
             event_occured = max(event_probs, key=lambda e: event_probs[e])
-        zi = self._sample_zi(event_occured, next_state,
+        zi = self._sample_zi(event_occured, next_state.pose(object_id),
                              grid_map, argmax=argmax)
 
         return ObjectObservation(self.agent_id, zi)
@@ -285,9 +285,8 @@ class Laser2DSensor(NoisySensor):
         return self.random(next_state, action,
                            object_id=object_id, grid_map=grid_map, argmax=True)
 
-    def _sample_zi(self, event, next_state, grid_map, argmax=False):
+    def _sample_zi(self, event, object_true_pose, grid_map, argmax=False):
         if event == "A":
-            object_true_pose = next_state.pose(self.agent_id)
             gaussian =  pomdp_py.Gaussian(list(object_true_pose[:2]),
                                           [[self.sigma**2, 0],
                                            [0, self.sigma**2]])

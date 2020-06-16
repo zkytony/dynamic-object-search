@@ -46,42 +46,37 @@ class DynamicAgentTransitionModel(pomdp_py.TransitionModel):
             else:
                 sample_func = self._motion_policy.random
                 
-            next_object_state = sample_func(state, action)
-            # else:
-            #     # The action taken by the agent is not relevant to sample the next
-            #     # position of this dynamic object which did not take the action.
-            #     # AT LEAST FOR NOW.
-            #     next_object_state = sample_func(state)
+            next_agent_state = sample_func(state, action)
         else:
-            next_object_state = copy.deepcopy(state.object_states[self._agent_id])
+            next_agent_state = copy.deepcopy(state.object_states[self._agent_id])
 
         if self._look_after_move\
            or (isinstance(action, LookAction) or isinstance(action, FindAction)):
             # Camera is turned on; The robot is looking
-            next_object_state["camera_on"] = True
-
-            detectables = self._detectables(state, self._sensor)
-            if hasattr(next_object_state, "fov_objects"):
+            next_agent_state["camera_on"] = True
+            
+            detectables = self._detectables(next_agent_state.pose, state, self._sensor)
+            if hasattr(next_agent_state, "fov_objects"):
                 # The object state is not searcher.
                 # Updating the objects in the field of view because the robot is looking.
-                next_object_state["fov_objects"] = tuple(detectables)
+                next_agent_state["fov_objects"] = tuple(detectables)
             else:
                 # The object state is a searcher, not victim/suspect.
                 if isinstance(action, FindAction):
-                    next_object_state["objects_found"] =\
-                    tuple(set(next_object_state["objects_found"]) | detectables)
+                    next_agent_state["objects_found"] =\
+                    tuple(set(next_agent_state["objects_found"]) | detectables)
         else:
             # Camera is turned off
-            next_object_state["camera_on"] = False
-        next_object_state["time"] = state.object_states[self._agent_id]["time"] + 1
-        return next_object_state
+            next_agent_state["camera_on"] = False
+        next_agent_state["time"] = state.object_states[self._agent_id]["time"] + 1
+        return next_agent_state
 
-    def _detectables(self, state, sensor):
+    def _detectables(self, agent_pose, state, sensor):
         result = set({})
         for objid in state.object_states:
             if objid == self._agent_id:
                 continue
-            if sensor.within_range(state.pose(self._agent_id), state.pose(objid)):
+            if sensor.within_range(agent_pose, state.pose(objid)):
                 result.add(objid)
         return result
 

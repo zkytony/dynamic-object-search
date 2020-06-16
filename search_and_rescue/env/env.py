@@ -20,11 +20,13 @@ class SAREnvironment(pomdp_py.Environment):
     def __init__(self,
                  role_to_ids,
                  grid_map,
+                 sensors,
                  init_state,
                  transition_model,
                  reward_model):
         self._role_to_ids = role_to_ids
         self.grid_map = grid_map
+        self.sensors = sensors
         super().__init__(init_state,
                          transition_model,
                          reward_model)
@@ -44,12 +46,12 @@ class SAREnvironment(pomdp_py.Environment):
             next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])                            
             if isinstance(action[agent_id], FindAction):
                 for found_agent_id in next_object_state["objects_found"]:
-                    active_agents.remove(found_agent_id)
+                    active_agents.discard(found_agent_id)
             else:
                 if self.role_for(agent_id) == "suspect":
                     for fov_agent_id in next_object_state["fov_objects"]:
                         if fov_agent_id in self._role_to_ids["victim"]:
-                            active_agents.remove(fov_agent_id)
+                            active_agents.discard(fov_agent_id)
             next_state.set_object_state(agent_id, next_object_state)
             if agent_id in self.reward_model:
                 rewards[agent_id] = self.reward_model.sample(
@@ -106,7 +108,7 @@ class SAREnvironment(pomdp_py.Environment):
             tuple(role_to_ids["searcher"] | role_to_ids["victim"] | role_to_ids["suspect"]),
             JointState(init_object_states)
         )
-        return SAREnvironment(role_to_ids, grid_map, init_state, tmodel, rmodel)
+        return SAREnvironment(role_to_ids, grid_map, sensors, init_state, tmodel, rmodel)
 
 
 #### Interpret string as an initial world state ####
@@ -215,8 +217,6 @@ def interpret(worldstr):
                 assert c == ".", "Unrecognized character %s in worldstr" % c
     if len(robots) == 0:
         raise ValueError("No initial robot pose!")
-    if len(objects) == 0:
-        raise ValueError("No object!")
 
     # Parse sensors
     for line in sensorlines:

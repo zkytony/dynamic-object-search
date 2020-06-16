@@ -200,46 +200,7 @@ def unittest():
     print("Adversarial preferred actions:")
     print(adversarial_preferred.rollout(state, ()))
     print(adversarial_preferred.action_prior.get_preferred_actions(state, ()))    
-    
-    # motion_actions = create_motion_actions(can_stay=True)
-
-    # sensor = Laser2DSensor(3, fov=359, max_range=10, epsilon=0.8, sigma=0.2)
-    # o = SensorModel({3,4,0,5}, sensor, grid_map)
-    # next_state = JointState({3: VictimState(3,   (4,8,math.pi), True),
-    #                          4: SearcherState(4, (4,4), (), True),
-    #                          0: ObstacleState(0, (2,3)),
-    #                          5: ObstacleState(5, (4,9))})
-    # action = Look
-    # print(o.sample(next_state, action))
-    # print(o.argmax(next_state, action))
 
 
 if __name__ == '__main__':
     unittest()
-    
-
-# class AdversarialPolicyModel(pomdp_py.RolloutPolicy):
-#     def __init__(self, object_id, motion_policy, action_prior=None):
-#         self.motion_policy = motion_policy
-#         self.object_id = object_id
-#         self.action_prior = action_prior
-        
-#     def sample(self, state, **kwargs):
-#         return random.sample(self._get_all_actions(**kwargs), 1)[0]
-
-#     def get_all_actions(self, state=None, history=None):
-#         if state is None:
-#             return self.motion_policy.motion_actions
-#         else:
-#             return self.motion_policy.legal_actions[state.pose(self.object_id)]
-                
-#     def rollout(self, state, history):
-#         if self.action_prior is None:
-#             return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
-#         else:
-#             preferences = self.action_prior.get_preferred_actions(state, history)
-#             if len(preferences) > 0:
-#                 return random.sample(preferences, 1)[0][0]
-#             else:
-#                 return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
-

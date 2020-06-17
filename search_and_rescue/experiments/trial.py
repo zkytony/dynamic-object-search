@@ -39,7 +39,6 @@ class SARTrial(Trial):
                 agents[agent_id] = agent
 
         self._solve(env, agents, solver_args, logging=logging)
-
         
     def _solve(self, env, agents, solver_args, logging=False):
         # Parameters
@@ -51,6 +50,7 @@ class SARTrial(Trial):
         max_time = solver_args.get("max_time", 500)
         max_steps = solver_args.get("max_steps", 150)
         save_path = solver_args.get("save_path", None)
+        controller_id = solver_args.get("controller_id", None)        
 
         # Build planners
         all_planners = {}
@@ -64,6 +64,9 @@ class SARTrial(Trial):
             all_planners[aid] = planner
         ma_planner = ParallelPlanner(all_planners, agents)
 
+        if visualize:
+            viz, viz_state = self._init_viz(env, agents, controller_id)
+
         _find_actions_count = 0
         _total_reward = {aid: 0 for aid in agents}  # total, undiscounted reward        
         for i in range(max_steps):
@@ -71,8 +74,10 @@ class SARTrial(Trial):
             # Case 1: All plan in parallel
             comp_action, comp_observation, reward, prev_state\
                 = self._do_loop(env, set(agents.keys()), ma_planner, set(agents.keys()))
-            # self._do_viz(viz, env, viz_state, robot_id, agents, comp_action, comp_observation,
-            #              look_after_move=look_after_move, save_path=save_path, step_index=i)
+
+            if visualize:
+                self._do_viz(env, agents, viz, viz_state,
+                             comp_action, comp_observation)
             
             # Record
             for aid in agents:
@@ -99,6 +104,36 @@ class SARTrial(Trial):
                 if logging:
                     self.log_event(Event("Trial %s | Task ended; Searcher Won.\n\n" % (self.name)))
                 break
+
+    def _init_viz(self, env, agents, controller_id=None):
+        # A state built for visualizing the fOV
+        viz_state = {}
+        z_viz = {}  # shows the whole FOV
+        for x in range(env.grid_map.width):
+            for y in range(env.grid_map.length):
+                viz_objid = len(viz_state)
+                viz_state[viz_objid] = ObstacleState(viz_objid, (x,y))
+        viz_state = JointState(viz_state)
+
+        viz = SARViz(env, controller_id=controller_id)
+        if viz.on_init() == False:
+            raise Exception("Visualization failed to initialize")        
+        img = viz.on_render()        
+        return viz, viz_state
+    
+    def _do_viz(self, env, agents, viz, viz_state,
+                comp_action, comp_observation):
+        # Sample observation
+        for aid in agents:
+            z_viz = {}      # shows only relevant object
+            viz_state.set_object_state(aid, copy.deepcopy(env.state.object_states[aid]))
+            for objid in viz_state.object_states:
+                z_viz[objid] = env.sensors[aid].random(viz_state,
+                                                       comp_action,
+                                                       object_id=objid).pose
+            observation_fov = JointObservation(z_viz)
+            viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov, None)
+        img = viz.on_render()
 
     def _do_loop(self, env, planning_agent_ids, ma_planner, all_agent_ids):
         comp_action = ma_planner.plan(planning_agent_ids)
@@ -132,11 +167,11 @@ def unittest():
     from dynamic_mos.example_worlds import place_objects
 
     # Create world
-    mapstr, free_locations = create_free_world(6,6)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+    mapstr, free_locations = create_free_world(8,8)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
     searcher_pose = random.sample(free_locations, 1)[0]
     victim_pose = random.sample(free_locations - {searcher_pose}, 1)[0]
     suspect_pose = random.sample(free_locations - {victim_pose, searcher_pose}, 1)[0]    
-    laserstr = make_laser_sensor(90, (1, 3), 0.5, False)    
+    laserstr = make_laser_sensor(90, (1, 2), 0.5, False)    
     mapstr = place_objects(mapstr,
                            {"R": searcher_pose,
                             "V": victim_pose,
@@ -145,7 +180,7 @@ def unittest():
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {}
-    solver_args = {}
+    solver_args = {"visualize": True}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,
               "world": worldstr}

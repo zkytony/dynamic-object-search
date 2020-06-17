@@ -19,11 +19,11 @@ class ParallelPlanner(pomdp_py.Planner):
 
     def plan(self, agent_ids):
         # # Plan with all planners
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     results = executor.map(self._plan_single, agent_ids)
-        results = []
-        for agent_id in self._planners:
-            results.append(self._plan_single(agent_id))
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(self._plan_single, agent_ids)
+        # results = []
+        # for agent_id in self._planners:
+        #     results.append(self._plan_single(agent_id))
 
         # Return a composite action
         actions = {}
@@ -31,7 +31,6 @@ class ParallelPlanner(pomdp_py.Planner):
             if res is not None:
                 agent_id, action, action_value, agent, num_sims = res
                 actions[agent_id] = action
-                print("Agent %d: %s" % (agent_id, str(action)))
         return ActionCollection(actions)
 
     def _plan_single(self, agent_id):
@@ -89,21 +88,20 @@ class ParallelPlanner(pomdp_py.Planner):
         if agent_ids is None:
             agent_ids = set(self._agents.keys())        
 
-        # with concurrent.futures.ProcessPoolExecutor() as executor:
-        #     results = executor.map(
-        #         self._update_belief,
-        #         ((agent_id, real_action[agent_id], real_observation[agent_id],
-        #           next_state.object_states[agent_id], state.object_states[agent_id])
-        #          for agent_id in agent_ids))
-        # for agent_id, belief in results:
-        #     self._agents[agent_id].set_belief(belief)
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = executor.map(
+                self._update_belief,
+                ((agent_id, real_action[agent_id], real_observation[agent_id],
+                  next_state.object_states[agent_id], state.object_states[agent_id])
+                 for agent_id in agent_ids))
+        for agent_id, belief in results:
+            self._agents[agent_id].set_belief(belief)
 
-
-        for agent_id in agent_ids:
-            self._update_belief((agent_id, real_action[agent_id],
-                                 real_observation[agent_id],
-                                 next_state.object_states[agent_id],
-                                 state.object_states[agent_id]))
+        # for agent_id in agent_ids:
+        #     self._update_belief((agent_id, real_action[agent_id],
+        #                          real_observation[agent_id],
+        #                          next_state.object_states[agent_id],
+        #                          state.object_states[agent_id]))
         
         for agent_id in agent_ids:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])

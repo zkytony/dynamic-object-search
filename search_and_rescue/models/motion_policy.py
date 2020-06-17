@@ -188,105 +188,113 @@ class BasicMotionPolicy(StochaisticPolicy):
 
 
 class AdversarialPolicy(StochaisticPolicy):
-    def __init__(self, object_id, robot_id,
+    def __init__(self, adv_id, agent_id,
                  grid_map, sensor_range, pr_stay=0.3,
                  rule="avoid", motion_actions=None):
         """With probability `pr_stay`, the object stays in place.
         With the complement probability, the agent moves to maintain
-        a distance of more than sensor_range+1 from the robot. The
+        a distance of more than sensor_range+1 from the agent. The
         object randomly chooses an action that suffices maintaining
         that distance.
 
         rule can be `avoid` or `keep`. If `avoid`, the object will
-        always move away from the robot. If `keep`, the object will
+        always move away from the agent. If `keep`, the object will
         choose actions that maintains sensor range distance away
-        from the robot."""
+        from the agent."""
         super().__init__(grid_map, motion_actions=motion_actions)
-        self._object_id = object_id  # the adversary
-        self._robot_id = robot_id  # the chaser
+        self._adv_id = adv_id  # the adversary
+        self._agent_id = agent_id  # the chaser
         self._sensor_range = sensor_range
         self._pr_stay = pr_stay
         self._rule = rule
 
-    def _adversarial_actions(self, object_pose, robot_pose):
+    def _adversarial_actions(self, adv_pose, agent_pose):
         """Maintain distance if possible. If not at all,
-        then just return the legal actions at this object pose"""
+        then just return the legal actions at this adv pose"""
         candidate_actions = []        
         if self._rule == "keep":
-            for action in self._legal_actions[object_pose]:
-                next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
+            for action in self._legal_actions[adv_pose]:
+                next_dist = euclidean_dist(next_pose(adv_pose, action.motion), agent_pose)
                 if next_dist > self._sensor_range*math.sqrt(2):
                     candidate_actions.append(action)
         elif self._rule == "avoid":
-            cur_dist = euclidean_dist(robot_pose, object_pose)
-            for action in self._legal_actions[object_pose[:2]]:
-                next_dist = euclidean_dist(next_pose(object_pose, action.motion), robot_pose)
+            cur_dist = euclidean_dist(agent_pose, adv_pose)
+            for action in self._legal_actions[adv_pose[:2]]:
+                next_dist = euclidean_dist(next_pose(adv_pose, action.motion), agent_pose)
                 if next_dist > cur_dist:
                     candidate_actions.append(action)
         elif self._rule == "chase":
-            # Here the object is actually chasing the robot (useful if
-            # you want to use this to model a robot's policy (robot/object swap)
-            cur_dist = euclidean_dist(robot_pose, object_pose)
-            for action in self._legal_actions[object_pose[:2]]:
-                next_dist = euclidean_dist(next_pose(object_pose[:2], action.motion), robot_pose)
+            # Here the adv is actually chasing the agent (useful if
+            # you want to use this to model a agent's policy (agent/adv swap)
+            cur_dist = euclidean_dist(agent_pose, adv_pose)
+            for action in self._legal_actions[adv_pose[:2]]:
+                next_dist = euclidean_dist(next_pose(adv_pose[:2], action.motion), agent_pose)
                 if next_dist < cur_dist:
                     candidate_actions.append(action)
         else:
             raise ValueError("Unknown adversarial rule %s" % self._rule)
         return candidate_actions
         
-    def probability(self, next_object_state, state):
-        cur_object_pose = state.pose(self._object_id)
-        next_object_pose = next_object_state.pose
-        diff_x = abs(cur_object_pose[0] - next_object_pose[0])
-        diff_y = abs(cur_object_pose[1] - next_object_pose[1])
+    def probability(self, next_adv_state, state, agent_state=None):
+        # The reason we have to do this check is because of
+        # histogram belief update; You cannot pass in full JointState
+        # and can only pass in adv state.
+        if not isinstance(state, JointState):
+            cur_adv_pose = state.pose
+            agent_pose = agent_state.pose
+        else:
+            cur_adv_pose = state.pose(self._adv_id)
+            agent_pose = state.pose(self._agent_id)
+        next_adv_pose = next_adv_state.pose
+        diff_x = abs(cur_adv_pose[0] - next_adv_pose[0])
+        diff_y = abs(cur_adv_pose[1] - next_adv_pose[1])
         if not ((diff_x == STEP_SIZE and diff_y == 0)
                 or (diff_x == 0 and diff_y == STEP_SIZE)
                 or (diff_x == 0 and diff_y == 0)):
             return 1e-9
 
-        actions = self._adversarial_actions(cur_object_pose, state.pose(self._robot_id))
+        actions = self._adversarial_actions(cur_adv_pose, agent_pose)
         if len(actions) == 0:
             # No adversarial actions possible.
-            if cur_object_pose == next_object_pose:
-                # Either the object decides to stay, or it has no clue. Either way,
+            if cur_adv_pose == next_adv_pose:
+                # Either the adv decides to stay, or it has no clue. Either way,
                 # this is basically the only thing that can happen
                 return 1.0 - 1e-9
             else:
                 return 1e-9
         else:
             # There are candidate actions
-            if next_object_pose == cur_object_pose:
-                # But the object chose to stay
+            if next_adv_pose == cur_adv_pose:
+                # But the adv chose to stay
                 return self._pr_stay
             else:
-                # The object must have taken an adversarial action
+                # The adv must have taken an adversarial action
                 for action in actions:
-                    if next_pose(cur_object_pose, action.motion) == next_object_pose:
+                    if next_pose(cur_adv_pose, action.motion) == next_adv_pose:
                         return (1.0 - self._pr_stay) / len(actions)
                 return 1e-9
 
     def random(self, state):
-        object_state = state.object_states[self._object_id]
-        robot_state = state.object_states[self._robot_id]        
+        adv_state = state.object_states[self._adv_id]
+        agent_state = state.object_states[self._agent_id]        
         if random.uniform(0,1) > self._pr_stay:
             # move adversarially
-            candidate_actions = self._adversarial_actions(object_state.pose, robot_state.pose)
+            candidate_actions = self._adversarial_actions(adv_state.pose, agent_state.pose)
             if len(candidate_actions) == 0:
                 # won't move, because no adversarial action
-                next_object_pose = object_state.pose
+                next_adv_pose = adv_state.pose
             else:
                 # randomly choose an action from candidates
                 action = random.choice(candidate_actions)
-                next_object_pose = next_pose(object_state.pose, action.motion)
+                next_adv_pose = next_pose(adv_state.pose, action.motion)
         else:
             # stay
-            next_object_pose = object_state.pose
+            next_adv_pose = adv_state.pose
 
-        next_object_state = copy.deepcopy(object_state)
-        next_object_state["pose"] = next_object_pose
-        next_object_state["time"] = object_state.time + 1
-        return next_object_state
+        next_adv_state = copy.deepcopy(adv_state)
+        next_adv_state["pose"] = next_adv_pose
+        next_adv_state["time"] = adv_state.time + 1
+        return next_adv_state
 
 
 class MixedPolicy(pomdp_py.GenerativeDistribution):
@@ -295,19 +303,19 @@ class MixedPolicy(pomdp_py.GenerativeDistribution):
         self._motion_policies = list(motion_policies)
         self._mpoli_weight = 1.0 / len(self._motion_policies)   # Pr(mpoli | state)
 
-    def probability(self, next_object_state, state):
+    def probability(self, next_object_state, state, **kwargs):
         prob = 0
         for mpoli in self._motion_policies:
-            prob += mpoli.probability(next_object_state, state) * self._mpoli_weight
+            prob += mpoli.probability(next_object_state, state, **kwargs) * self._mpoli_weight
         return prob
 
     def random(self, state):
         # First, pick a motion policy according to weight
         ## Note even though below is just a uniform sampling, we might (in the future)
         ## have non-uniform weights for the policies.
-        mpoli_chosen = random.choice(
+        mpoli_chosen = random.choices(
             self._motion_policies,
-            weights=[self._motion_policies]*len(self._motion_policies), k=1)[0]
+            weights=[self._mpoli_weight]*len(self._motion_policies), k=1)[0]
         return mpoli_chosen.random(state)
 
 

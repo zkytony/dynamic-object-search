@@ -26,22 +26,22 @@ class SensorModel(pomdp_py.OOObservationModel):
 
     def sample(self, next_state, action, argmax=False):
         if not is_sensing(self._look_after_move, action):
-            return MosOOObservation({})
+            return JointObservation({})
 
         factored_observations = super().sample(next_state, action, argmax=argmax)
         return JointObservation.merge(factored_observations, next_state)
 
 class ObjectSensorModel(pomdp_py.ObservationModel):
-    """Object sensor model"""
+    """Object sensor model; It samples the observation for a particular object `objid`"""
     def __init__(self, objid, sensor, grid_map, look_after_move=False):
         self._objid = objid
-        self._sensor = sensor
+        self._sensor = sensor  # Sensor belongs to the agent.
         self._grid_map = grid_map
         self._look_after_move = look_after_move
 
-    def probability(self, obj_observation, next_state, action):
+    def probability(self, obj_observation, next_state, action, **kwargs):
         assert isinstance(obj_observation, ObjectObservation)
-        if not self._is_sensing(self._look_after_move, action):
+        if not is_sensing(self._look_after_move, action):
             # No observation should be received
             if observation.pose == ObjectObservation.NULL:
                 return 1.0
@@ -50,12 +50,12 @@ class ObjectSensorModel(pomdp_py.ObservationModel):
         
         return self._sensor.probability(obj_observation,
                                         next_state,
-                                        action)
+                                        action, **kwargs)
     
     def sample(self, next_state, action, argmax=False):
         if not is_sensing(self._look_after_move, action):
             # Not a look action. So no observation
-            return ObjectObservation(self.agent_id, ObjectObservation.NULL)
+            return ObjectObservation(self._objid, ObjectObservation.NULL)
         
         if argmax:
             sample_func = self._sensor.mpe

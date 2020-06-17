@@ -4,6 +4,7 @@ import random
 import numpy as np
 import math
 from search_and_rescue.env.observation import *
+from search_and_rescue.env.state import *
 from search_and_rescue.utils import *
 
 class NoisySensor(pomdp_py.GenerativeDistribution):
@@ -45,7 +46,7 @@ class Laser2DSensor(NoisySensor):
                  fov=90, min_range=1, max_range=5,
                  angle_increment=5,
                  occlusion_enabled=False,
-                 sigma=0, epsilon=1):
+                 sigma=1e-9, epsilon=1):
         """
         fov (float): angle between the start and end beams of one scan (degree).
         min_range (int or float)
@@ -211,23 +212,14 @@ class Laser2DSensor(NoisySensor):
             next_state (State)
             action (Action)
         """
-        if not self._is_sensing(action):
-            # No observation should be received
-            if observation.pose == ObjectObservation.NULL:
-                return 1.0
-            else:
-                return 0.0
-
         # The (funny) business of allowing histogram belief update using O(oi|si',sr',a).
         next_agent_state = kwargs.get("next_agent_state", None)
         if next_agent_state is not None:
-            assert next_agent_state["id"] == self._sensor.agent_id,\
+            assert next_agent_state["id"] == self.agent_id,\
                 "Agent id of observation model mismatch with given state"
             agent_pose = next_agent_state.pose
             
             if isinstance(next_state, ObjectState):
-                assert next_state["id"] == self.agent_id,\
-                    "Object id of observation model mismatch with given state"
                 object_pose = next_state.pose
             else:
                 object_pose = next_state.pose(observation.objid)
@@ -237,7 +229,7 @@ class Laser2DSensor(NoisySensor):
 
         # Compute the probability
         zi = observation.pose
-        alpha, beta, gamma = self._compute_params(self._sensor.within_range(agent_pose, object_pose))
+        alpha, beta, gamma = self._compute_params(self.within_range(agent_pose, object_pose))
         # Requires Python >= 3.6
         event_occured = random.choices(["A", "B", "C"], weights=[alpha, beta, gamma], k=1)[0]
         if event_occured == "A":
@@ -247,7 +239,7 @@ class Laser2DSensor(NoisySensor):
                 # This has 0.0 probability.
                 return 0.0 * alpha
             else:
-                gaussian = pomdp_py.Gaussian(list(object_pose),
+                gaussian = pomdp_py.Gaussian(list(object_pose[:2]),
                                              [[self.sigma**2, 0],
                                               [0, self.sigma**2]])
                 return gaussian[zi] * alpha

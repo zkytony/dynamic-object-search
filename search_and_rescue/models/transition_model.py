@@ -35,9 +35,9 @@ class DynamicAgentTransitionModel(pomdp_py.TransitionModel):
         self._look_after_move = look_after_move
         self._sensor = sensor
         
-    def probability(self, next_object_state, state, action):
+    def probability(self, next_object_state, state, action, **kwargs):
         return self._motion_policy.probability(next_object_state,
-                                               state, action)
+                                               state, action, **kwargsx)
 
     def sample(self, state, action, argmax=False):
         if isinstance(action, MotionAction):
@@ -92,8 +92,8 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
         self._motion_policy = motion_policy
         self._epsilon = epsilon
 
-    def probability(self, next_object_state, state, *args):
-        return self._motion_policy.probability(next_object_state, state)
+    def probability(self, next_object_state, state, *args, **kwargs):
+        return self._motion_policy.probability(next_object_state, state, **kwargs)
 
     def sample(self, state, *args, argmax=False):
         if argmax:

@@ -65,6 +65,10 @@ class SAREnvironment(pomdp_py.Environment):
         else:
             return next_state, rewards
 
+    def provide_observation(self, observation_model, action, **kwargs):
+        return observation_model.sample(self.state.joint_state, action, **kwargs)
+        
+
     def ids_for(self, role):
         return self._role_to_ids[role]
 
@@ -264,7 +268,7 @@ def make_laser_sensor(fov, dist_range, angle_increment, occlusion):
     Returns string representation of the laser scanner configuration.
     For example:  "laser fov=90 min_range=1 max_range=10"
 
-    Args:
+    Args:p
         fov (int or float): angle between the start and end beams of one scan (degree).
         dist_range (tuple): (min_range, max_range)
         angle_increment (int or float): angular distance between measurements (rad).

@@ -287,22 +287,6 @@ class SARViz:
                 robot_id = self._controller_id
             if action is None:
                 return
-            # if isinstance(action, MotionAction):
-            #     reward = self._env.state_transition(ActionCollection({robot_id:action}),
-            #                                         execute=True)
-            #     z = None
-            # elif isinstance(action, LookAction) or isinstance(action, FindAction):
-            #     robot_pose = self._env.state.pose(robot_id)
-            #     z = self._env.sensors[robot_id].observe(robot_pose,
-            #                                             self._env.state)
-            #     self._last_observation[robot_id] = z
-            #     self._last_viz_observation[robot_id] = z                    
-            #     reward = self._env.state_transition(action, execute=True, robot_id=robot_id)
-            # print("robot state: %s" % str(self._env.state.object_states[robot_id]))
-            # print("     action: %s" % str(action.name))
-            # print("     observation: %s" % str(z))
-            # print("     reward: %s" % str(reward))
-            # print("------------")
             return action
 
     def on_loop(self):
@@ -381,7 +365,7 @@ def unittest(worldstr):
                                    {**robots, **objects},
                                    grid_map, motion_actions, sensors,
                                    look_after_move=True)
-    viz = SARViz(env, res=30, fps=30, controller_id=5000)
+    viz = SARViz(env, res=30, fps=30, controller_id=3000)
     viz.on_execute(action_callback)    
 
 if __name__ == '__main__':

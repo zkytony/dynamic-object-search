@@ -289,9 +289,27 @@ class AdversarialPolicy(StochaisticPolicy):
         return next_object_state
 
 
-class MixedPolicy(StochaisticPolicy):
+class MixedPolicy(pomdp_py.GenerativeDistribution):
     def __init__(self, object_id, motion_policies):
-        pass
+        self.object_id = object_id
+        self._motion_policies = list(motion_policies)
+        self._mpoli_weight = 1.0 / len(self._motion_policies)   # Pr(mpoli | state)
+
+    def probability(self, next_object_state, state):
+        prob = 0
+        for mpoli in self._motion_policies:
+            prob += mpoli.probability(next_object_state, state) * self._mpoli_weight
+        return prob
+
+    def random(self, state):
+        # First, pick a motion policy according to weight
+        ## Note even though below is just a uniform sampling, we might (in the future)
+        ## have non-uniform weights for the policies.
+        mpoli_chosen = random.choice(
+            self._motion_policies,
+            weights=[self._motion_policies]*len(self._motion_policies), k=1)[0]
+        return mpoli_chosen.random(state)
+
 
 
 # UNIT TESTS

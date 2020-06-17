@@ -89,19 +89,20 @@ class PreferredPolicyModel(PolicyModel):
 
 
 class GreedyActionPrior(pomdp_py.ActionPrior):
-    def __init__(self, agent_id, adversary_ids, motion_policy,
-                 num_visits_init, val_init, look_after_move=False,
-                 rule="avoid"):
+    def __init__(self, agent_id, adversary_ids, motion_policy, rules,
+                 num_visits_init, val_init, look_after_move=False):
         """
         Object `object_id` is trying to act adversarially against the robot `robot_id`.
         It could be that object_id is chasing or avoiding the robot.
+
+        rules (dict): Dicitonary mapping from adversary id to "chase" or "avoid".
         """
         self.agent_id = agent_id
         self.motion_policy = motion_policy
         self.num_visits_init = num_visits_init
         self.val_init = val_init
         self._look_after_move = look_after_move
-        self._rule = rule
+        self._rules = rules
         self.adversary_ids = adversary_ids
         
 
@@ -137,10 +138,10 @@ class GreedyActionPrior(pomdp_py.ActionPrior):
                 motion_action = neighbors[next_object_pose]
                 next_dist = euclidean_dist(next_object_pose,
                                            state.pose(adv_id))
-                if self._rule == "avoid":
+                if self._rules[adv_id] == "avoid":
                     if next_dist > cur_dist:
                         preferences.add((motion_action, self.num_visits_init, self.val_init))
-                elif self._rule == "chase":
+                elif self._rules[adv_id] == "chase":
                     if next_dist < cur_dist:
                         preferences.add((motion_action, self.num_visits_init, self.val_init))
         return preferences
@@ -161,8 +162,8 @@ def unittest():
     print(policy_model.get_all_actions(state=state))
     print(policy_model.sample(state))
     
-    avoid_action_prior = GreedyActionPrior(3, {4}, bmp, 10, 100, look_after_move=False, rule="avoid")
-    chase_action_prior = GreedyActionPrior(4, {3}, bmp, 10, 100, look_after_move=False, rule="chase")
+    avoid_action_prior = GreedyActionPrior(3, {4}, bmp, {4:"chase"}, 10, 100, look_after_move=False)
+    chase_action_prior = GreedyActionPrior(4, {3}, bmp, {3:"avoid"}, 10, 100, look_after_move=False)
     avoid_preferred = PreferredPolicyModel("victim",
                                            avoid_action_prior,
                                            look_after_move=False)

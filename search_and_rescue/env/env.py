@@ -306,6 +306,7 @@ def unittest(worldstr):
     from search_and_rescue.models.grid_map import GridMap
     from search_and_rescue.env.action import create_motion_actions
 
+    look_after_move = False
     laserstr = make_laser_sensor(90, (1, 50), 0.5, False)
     worldstr = equip_sensors(worldstr, {"S": laserstr,
                                         "V": laserstr,
@@ -318,8 +319,9 @@ def unittest(worldstr):
     env = SAREnvironment.construct(role_to_ids,
                                    {**robots, **objects},
                                    grid_map, motion_actions, sensors,
-                                   look_after_move=True)
+                                   look_after_move=look_after_move)
     print(env.state)
+    return env, role_to_ids, sensors, motion_actions, look_after_move
     
 
 if __name__ == '__main__':

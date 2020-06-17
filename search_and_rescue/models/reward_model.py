@@ -2,7 +2,7 @@ import pomdp_py
 from search_and_rescue.env.action import *
 from search_and_rescue.env.state import *
 
-class SARRewardModel:
+class SARRewardModel(pomdp_py.RewardModel):
     def __init__(self, agent_id, big=100, small=1, role_to_ids={}):
         self._agent_id = agent_id
         self.big = big
@@ -87,17 +87,17 @@ class VictimRewardModel(SARRewardModel):
     """Adversarial agent reward model"""
 
     def _reward_func(self, state, action, next_state):
-        # If fov objects contains searcher, then good.
+        # (NOT USED) If fov objects contains searcher, then good.
         # If fov objects contains suspect, then bad.
         # Otherwise, -small
-        for searcher_id in self._role_to_ids["searcher"]:
-            cur_seen_searcher = searcher_id in state.object_states[self._agent_id]["fov_objects"]
-            next_seen_searcher = searcher_id in next_state.object_states[self._agent_id]["fov_objects"]            
+        # for searcher_id in self._role_to_ids["searcher"]:
+        #     cur_seen_searcher = searcher_id in state.object_states[self._agent_id]["fov_objects"]
+        #     next_seen_searcher = searcher_id in next_state.object_states[self._agent_id]["fov_objects"]            
             
-            if not cur_seen_searcher and next_seen_searcher:
-                return self.big
-            elif cur_seen_searcher and next_seen_searcher:
-                return -self.small
+        #     if not cur_seen_searcher and next_seen_searcher:
+        #         return self.big
+        #     elif cur_seen_searcher and next_seen_searcher:
+        #         return -self.small
         for suspect_id in self._role_to_ids["suspect"]:
             cur_seen_suspect = suspect_id in state.object_states[self._agent_id]["fov_objects"]
             next_seen_suspect = suspect_id in next_state.object_states[self._agent_id]["fov_objects"]

@@ -31,6 +31,7 @@ class ParallelPlanner(pomdp_py.Planner):
             if res is not None:
                 agent_id, action, action_value, agent, num_sims = res
                 actions[agent_id] = action
+                self._agents[agent_id] = agent
         return ActionCollection(actions)
 
     def _plan_single(self, agent_id):
@@ -43,7 +44,8 @@ class ParallelPlanner(pomdp_py.Planner):
         else:
             action_value = 0
             last_num_sims = 0
-        return agent_id, action, action_value, self._agents[agent_id], last_num_sims
+        return agent_id, action, action_value,\
+            self._agents[agent_id], last_num_sims
 
     def _update_belief(self, tup):
         agent_id, action, observation, next_agent_state, agent_state = tup
@@ -105,5 +107,7 @@ class ParallelPlanner(pomdp_py.Planner):
         
         for agent_id in agent_ids:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])
-            self._planners[agent_id].update(self._agents[agent_id], real_action[agent_id], real_observation[agent_id])            
+            self._planners[agent_id].update(self._agents[agent_id],
+                                            real_action[agent_id],
+                                            real_observation[agent_id])
 

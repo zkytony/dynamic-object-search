@@ -49,15 +49,15 @@ class SARViz:
         # Generate some colors, one per object
         colors = {}
         random.seed(1)
-        for i, agent_id in enumerate(sorted(env.ids_for("victim"))):
+        for i, agent_id in enumerate(sorted(env.ids_for("searcher"))):
             colors[agent_id] = object_color(agent_id, 0)
+            print("Robot %d is assigned color %s" % (agent_id, colors[agent_id]))            
+        for i, agent_id in enumerate(sorted(env.ids_for("victim"))):
+            colors[agent_id] = object_color(agent_id, 1)
             print("Object %d is assigned color %s" % (agent_id, colors[agent_id]))
         for i, agent_id in enumerate(sorted(env.ids_for("suspect"))):
-            colors[agent_id] = object_color(agent_id, 1)
-            print("Robot %d is assigned color %s" % (agent_id, colors[agent_id]))
-        for i, agent_id in enumerate(sorted(env.ids_for("searcher"))):
             colors[agent_id] = object_color(agent_id, 2)
-            print("Robot %d is assigned color %s" % (agent_id, colors[agent_id]))            
+            print("Robot %d is assigned color %s" % (agent_id, colors[agent_id]))
         random.seed()
         self._colors = colors
 

@@ -73,7 +73,7 @@ class SARTrial(Trial):
 
             # Case 1: All plan in parallel
             comp_action, comp_observation, reward, prev_state\
-                = self._do_loop(env, set(agents.keys()), ma_planner, set(agents.keys()))
+                = self._do_loop(env, env.state.active_agents, ma_planner)
 
             if visualize:
                 self._do_viz(env, agents, viz, viz_state,
@@ -81,10 +81,13 @@ class SARTrial(Trial):
             
             # Record
             for aid in agents:
-                _total_reward[aid] += reward[aid]
+                if aid not in reward:
+                    reward[aid] = float("-inf")
+                else:
+                    _total_reward[aid] += reward[aid]
 
             # Info
-            _step_info = self._do_info(i, comp_action, reward, _total_reward, ma_planner)
+            _step_info = self._do_info(i, comp_action, reward, _total_reward, ma_planner, env)
             if logging:
                 self.log_event(Event("Trial %s | %s" % (self.name, _step_info)))
             else:
@@ -135,7 +138,7 @@ class SARTrial(Trial):
             viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov, None)
         img = viz.on_render()
 
-    def _do_loop(self, env, planning_agent_ids, ma_planner, all_agent_ids):
+    def _do_loop(self, env, planning_agent_ids, ma_planner):
         comp_action = ma_planner.plan(planning_agent_ids)
         prev_state = copy.deepcopy(env.state)
         reward = env.state_transition(comp_action, execute=True)
@@ -147,14 +150,14 @@ class SARTrial(Trial):
             for agent_id in ma_planner.agents
         })
         ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state),
-                          prev_state, agent_ids=all_agent_ids)
+                          prev_state, agent_ids=planning_agent_ids)
         return comp_action, comp_observation, reward, prev_state
 
-    def _do_info(self, i, comp_action, reward, _total_reward, ma_planner):
+    def _do_info(self, i, comp_action, reward, _total_reward, ma_planner, env):
         _step_info = "Step %d:\n" % (i+1)
         for agent_id in ma_planner.planners:
-            _step_info += "    Action: %s    Reward: %.3f    Cumulative Reward: %.3f"\
-                % (str(comp_action[agent_id]), reward[agent_id], _total_reward[agent_id])
+            _step_info += "   %s:    Action: %s    Reward: %.3f    Cumulative Reward: %.3f"\
+                % (env.role_for(agent_id), str(comp_action[agent_id]), reward[agent_id], _total_reward[agent_id])
             if isinstance(ma_planner.planners[agent_id], pomdp_py.POUCT):
                 _step_info += "   NumSims: %d" % ma_planner.planners[agent_id].last_num_sims
             _step_info += "\n"
@@ -179,7 +182,7 @@ def unittest():
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
-    problem_args = {}
+    problem_args = {"can_stay": False}
     solver_args = {"visualize": True}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,

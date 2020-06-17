@@ -41,17 +41,29 @@ class SAREnvironment(pomdp_py.Environment):
         # A searcher never becomes inactive;
         # A suspect becomes inactive when it falls into the objects_found set of the searcher
         # A victim becomes inactive when it falls into the fov_objects set of the suspect
+        # Inactive agent state won't be updated
         rewards = {}
+
+        # Any suspect becomes inactive?
         for agent_id in action.actions:
-            next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])                            
             if isinstance(action[agent_id], FindAction):
+                next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])
                 for found_agent_id in next_object_state["objects_found"]:
                     active_agents.discard(found_agent_id)
-            else:
-                if self.role_for(agent_id) == "suspect":
-                    for fov_agent_id in next_object_state["fov_objects"]:
-                        if fov_agent_id in self._role_to_ids["victim"]:
-                            active_agents.discard(fov_agent_id)
+
+        # Any victim becomes inactive?
+        for agent_id in action.actions:
+            if agent_id not in active_agents:
+                continue
+            if self.role_for(agent_id) == "suspect":
+                next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])
+                for fov_agent_id in next_object_state["fov_objects"]:
+                    if fov_agent_id in self._role_to_ids["victim"]:
+                        active_agents.discard(fov_agent_id)
+
+        # The remaining active agents will have their states updated
+        for agent_id in active_agents:
+            next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])
             next_state.set_object_state(agent_id, next_object_state)
             if agent_id in self.reward_model:
                 rewards[agent_id] = self.reward_model.sample(

@@ -8,7 +8,7 @@ from search_and_rescue.env.action import *
 
 
 def is_sensing(look_after_move, action):
-    return isinstance(action, LookAction)\
+    return isinstance(action, LookAction) or isinstance(action, FindAction)\
         or (look_after_move and isinstance(action, MotionAction))
 
 class SensorModel(pomdp_py.OOObservationModel):
@@ -43,7 +43,7 @@ class ObjectSensorModel(pomdp_py.ObservationModel):
         assert isinstance(obj_observation, ObjectObservation)
         if not is_sensing(self._look_after_move, action):
             # No observation should be received
-            if observation.pose == ObjectObservation.NULL:
+            if obj_observation.pose == ObjectObservation.NULL:
                 return 1.0
             else:
                 return 0.0

@@ -258,12 +258,11 @@ class UnlimitedSensor(NoisySensor):
         actually be visible due to occlusion or "gap" between beams"""
         return True
 
-    def probability(self, observation, next_state, action, object_id=None, **kwargs):
-        assert object_id is not None, "Did not specify which object to create observation for"
+    def probability(self, observation, next_state, action, **kwargs):
+        next_agent_state = kwargs.get("next_agent_state", None)        
         assert isinstance(observation, ObjectObservation)
-        if observation.objid != object_id:
-            import pdb; pdb.set_trace()
-            return 1e-9
+        if self.agent_id != next_agent_state["id"]:
+            raise ValueError("Agent ID %d != %d" % (self.agent_id, next_agent_state["id"]))
 
         if isinstance(next_state, ObjectState):
             object_pose = next_state.pose

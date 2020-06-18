@@ -61,7 +61,7 @@ class SARAgent(pomdp_py.Agent):
                                 id2, objid, grid_map, None,  # None: unknown sensor range
                                 motion_actions=motion_actions, rule="avoid")
                             policies.append(p)
-                        mpoli = MixedPolicy(objid, policies)                            
+                        mpoli = MixedPolicy(objid, policies)
                     elif role == "suspect":
                         # suspect tries to avoid searcher but chases the victim
                         policies = []

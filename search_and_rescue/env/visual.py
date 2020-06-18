@@ -14,15 +14,20 @@ from dynamic_mos.example_worlds import place_objects
 # Deterministic way to get object color
 def object_color(objid, count):
     color = [107, 107, 107]
-    if count % 3 == 0:
+    if count % 5 == 0:
         color[0] += random.randint(120, 144)
         color[0] = max(12, min(222, color[0]))
-    elif count % 3 == 1:
+    elif count % 5 == 1:
         color[1] += random.randint(120, 144)        
         color[1] = max(12, min(222, color[1]))        
-    else:
+    elif count % 5 == 2:
         color[2] += random.randint(120, 144)        
-        color[2] = max(12, min(222, color[2]))    
+        color[2] = max(12, min(222, color[2]))
+    elif count % 5 == 3:
+        color[0] = random.randint(120, 144)        
+        color[0] = max(12, min(222, color[0]))        
+        color[1] = random.randint(120, 144)        
+        color[1] = max(12, min(222, color[1]))
     return tuple(color)
 
 
@@ -58,6 +63,9 @@ class SARViz:
         for i, agent_id in enumerate(sorted(env.ids_for("suspect"))):
             colors[agent_id] = object_color(agent_id, 2)
             print("Robot %d is assigned color %s" % (agent_id, colors[agent_id]))
+        for i, agent_id in enumerate(sorted(env.ids_for("target"))):
+            colors[agent_id] = object_color(agent_id, 3)
+            print("Robot %d is assigned color %s" % (agent_id, colors[agent_id]))            
         random.seed()
         self._colors = colors
 
@@ -235,6 +243,7 @@ class SARViz:
 
     def render_single_target(self, img, objid, pose, res):
         x, y = pose
+        r = res
         color = util.lighter(self._colors[objid], -0.3)
         cv2.rectangle(img, (y*r, x*r), (y*r+r, x*r+r), color, -1)
 

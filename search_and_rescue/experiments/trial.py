@@ -81,9 +81,10 @@ class SARTrial(Trial):
                 = self._do_loop(env, env.state.active_agents, ma_planner)
 
             if visualize:
-                self._do_viz(env, agents, viz, viz_state,
+                viz_obs = self._do_viz(env, agents, viz, viz_state,
                              comp_action, comp_observation)
-                plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors)                
+                plot_multi_agent_beliefs(agents, env.role_for,
+                                         env.grid_map, viz.object_colors, viz_obs)
             
             # Record
             for aid in agents:
@@ -133,6 +134,7 @@ class SARTrial(Trial):
     def _do_viz(self, env, agents, viz, viz_state,
                 comp_action, comp_observation):
         # Sample observation
+        viz_observations = {}
         for aid in agents:
             z_viz = {}      # shows only relevant object
             viz_state.set_object_state(aid, copy.deepcopy(env.state.object_states[aid]))
@@ -142,9 +144,9 @@ class SARTrial(Trial):
                                                        object_id=objid).pose
             observation_fov = JointObservation(z_viz)
             viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov, None)
-
-            # Visualize belief
+            viz_observations[aid]= observation_fov
         img = viz.on_render()
+        return viz_observations
 
     def _do_loop(self, env, planning_agent_ids, ma_planner):
         comp_action = ma_planner.plan(planning_agent_ids)

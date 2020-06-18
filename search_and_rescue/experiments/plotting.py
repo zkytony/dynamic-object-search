@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 from pomdp_py import util
+from search_and_rescue import ObjectObservation
 
 def plot_belief(ax, belief, cmap="Greys", size=None, zorder=1):
     xvals, yvals, c = [], [], []
@@ -41,15 +42,26 @@ def plot_agent_belief(ax, agent, object_colors):
     cmap = get_cmap(object_colors, agent.agent_id)
     plot_belief(ax, agent.belief.object_belief(agent.agent_id),
                 cmap=cmap, size=size, zorder=zorder)
-    
+
+
+def plot_viz_observation(ax, z):
+    xvals, yvals = [], []
+    for objid in z.objposes:
+        if z.for_obj(objid).pose != ObjectObservation.NULL:
+            lx, ly = z.for_obj(objid).pose
+            xvals.append(lx+0.5)
+            yvals.append(ly+0.5)
+    ax.scatter(xvals, yvals, s=1000, c="yellow", zorder=0)
         
-def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors):
+def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors, viz_observations={}):
     for aid in agents:
         plt.figure(aid)
         plt.clf()
         fig = plt.gcf()
         ax = plt.gca()
         plot_agent_belief(ax, agents[aid], object_colors)
+        if aid in viz_observations:
+            plot_viz_observation(ax, viz_observations[aid])
         ax.set_title("Agent %d (%s)" % (aid, role_for(aid)))
         ax.set_xlim(0, grid_map.width)
         ax.set_ylim(0, grid_map.length)

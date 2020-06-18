@@ -44,13 +44,13 @@ class SARAgent(pomdp_py.Agent):
                         policies = []
                         for id2 in role_to_ids["victim"]:
                             p = AdversarialPolicy(
-                                id2, objid, grid_map, None,  # None: unknown sensor range
+                                objid, id2, grid_map, None,  # None: unknown sensor range
                                 motion_actions=motion_actions, rule="chase")
                             policies.append(p)
                         for id2 in role_to_ids["suspect"]:
                             p = AdversarialPolicy(
-                                id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="avoid")
+                                objid, id2, grid_map, None,  # None: unknown sensor range
+                                motion_actions=motion_actions, rule="chase")
                             policies.append(p)
                         mpoli = MixedPolicy(objid, policies)
                     elif role == "victim":
@@ -58,8 +58,8 @@ class SARAgent(pomdp_py.Agent):
                         policies = []
                         for id2 in role_to_ids["suspect"]:
                             p = AdversarialPolicy(
-                                id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="chase")
+                                objid, id2, grid_map, None,  # None: unknown sensor range
+                                motion_actions=motion_actions, rule="avoid")
                             policies.append(p)
                         mpoli = MixedPolicy(objid, policies)
                     elif role == "suspect":
@@ -67,13 +67,13 @@ class SARAgent(pomdp_py.Agent):
                         policies = []
                         for id2 in role_to_ids["victim"]:
                             p = AdversarialPolicy(
-                                id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="avoid")
+                                objid, id2, grid_map, None,  # None: unknown sensor range
+                                motion_actions=motion_actions, rule="chase")
                             policies.append(p)
                         for id2 in role_to_ids["searcher"]:
                             p = AdversarialPolicy(
-                                id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="chase")
+                                objid, id2, grid_map, None,  # None: unknown sensor range
+                                motion_actions=motion_actions, rule="avoid")
                             policies.append(p)
                         mpoli = MixedPolicy(objid, policies)
                 motion_policies[objid] = mpoli

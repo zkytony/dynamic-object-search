@@ -329,7 +329,7 @@ class MixedPolicy(pomdp_py.GenerativeDistribution):
 def unittest():
     from search_and_rescue.models.grid_map import GridMap
     grid_map = GridMap(10, 10,
-                       {0: (2,3), 5:(4,9)})
+                       {0: (9,9), 5:(4,9)})
     motion_actions = create_motion_actions(can_stay=True)
     
     bmp = BasicMotionPolicy(4, grid_map, motion_actions)
@@ -348,6 +348,25 @@ def unittest():
     end_position = (5,5,math.pi*2/3)
     path = bmp.path_between(start_position, end_position, motion_actions)
     print(path)
+
+    print("Create a situation to test out \"probability\" function of AdversarialPolicy")
+    searcher_id = 3
+    suspect_id = 4
+    
+    searcher_pose = (3,3, math.pi*2/3)
+    suspect_pose = (2,5, math.pi)    
+    state = JointState({searcher_id: SearcherState(searcher_id, (*searcher_pose,), (), True),
+                        suspect_id: SuspectState(suspect_id, (*suspect_pose,), (), True)})
+
+    searcher_pose = next_pose(searcher_pose, MoveWest.motion)
+    next_state = JointState({searcher_id: SearcherState(searcher_id, (*searcher_pose,), (), True),
+                             suspect_id: SuspectState(suspect_id, (*suspect_pose,), (), True)})
+    
+    searcher_adv_policy = AdversarialPolicy(searcher_id, suspect_id, grid_map, None,
+                                            rule="chase", motion_actions=motion_actions)
+    print(searcher_adv_policy.probability(next_state.object_states[searcher_id],
+                                          state.object_states[searcher_id],
+                                          agent_state=state.object_states[suspect_id]))
 
 if __name__ == '__main__':
     unittest()

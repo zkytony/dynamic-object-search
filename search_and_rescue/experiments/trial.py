@@ -158,6 +158,7 @@ class SARTrial(Trial):
         return viz_observations
 
     def _do_loop(self, env, planning_agent_ids, ma_planner, mdp_agent_ids):
+        """DO the Agent-Environment Loop and Update the beliefs"""
         comp_action = ma_planner.plan(planning_agent_ids)
         prev_state = copy.deepcopy(env.state)
         reward = env.state_transition(comp_action, execute=True)
@@ -179,7 +180,11 @@ class SARTrial(Trial):
                 next_obj_state = copy.deepcopy(env.state.object_states[objid])
                 new_belief = pomdp_py.Histogram({next_obj_state: 1.0})
                 mdp_agent.cur_belief.set_object_belief(objid, new_belief)
-            # print(mdp_agent.policy_model.get_all_actions(state=env.state))
+            # update history and the planner for the mdp agent
+            mdp_agent.update_history(comp_action[agent_id], comp_observation[agent_id])
+            ma_planner.planners[agent_id].update(mdp_agent,
+                                                 comp_action[agent_id],
+                                                 comp_observation[agent_id])                
         return comp_action, comp_observation, reward, prev_state
 
     def _do_info(self, i, comp_action, reward, _total_reward, ma_planner, env):
@@ -197,11 +202,11 @@ def unittest():
     from dynamic_mos.example_worlds import place_objects
 
     # Create world
-    mapstr, free_locations = create_free_world(8,8)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+    mapstr, free_locations = create_free_world(3,3)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
     searcher_pose = random.sample(free_locations, 1)[0]
     victim_pose = random.sample(free_locations - {searcher_pose}, 1)[0]
     suspect_pose = random.sample(free_locations - {victim_pose, searcher_pose}, 1)[0]    
-    laserstr = make_laser_sensor(90, (1, 2), 0.5, False)    
+    laserstr = make_laser_sensor(90, (1, 1), 0.5, False)    
     mapstr = place_objects(mapstr,
                            {"R": searcher_pose,
                             "S": suspect_pose})

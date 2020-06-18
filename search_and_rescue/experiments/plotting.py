@@ -55,7 +55,7 @@ def plot_viz_observation(ax, z):
         
 def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors, viz_observations={}):
     for aid in agents:
-        plt.figure(aid)
+        plt.figure(aid, figsize=(3,3))
         plt.clf()
         fig = plt.gcf()
         ax = plt.gca()
@@ -77,7 +77,7 @@ def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors, viz_obse
             x,y = grid_map.obstacles[objid]
             oxvals.append(x+0.5)
             oyvals.append(y+0.5)
-            ax.scatter(oxvals, oyvals, s=1000, c="black",
+            ax.scatter(oxvals, oyvals, s=500, c="black",
                        marker="x", zorder=1)
         fig.canvas.draw()
         fig.canvas.flush_events()

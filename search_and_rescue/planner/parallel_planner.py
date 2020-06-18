@@ -3,7 +3,6 @@ import concurrent.futures
 import copy
 from search_and_rescue.env.action import ActionCollection
 from search_and_rescue.env.observation import ObservationCollection
-from search_and_rescue.experiments.plotting import *
 
 class ParallelPlanner(pomdp_py.Planner):
     def __init__(self, planners, agents):
@@ -30,9 +29,10 @@ class ParallelPlanner(pomdp_py.Planner):
         actions = {}
         for res in results:
             if res is not None:
-                agent_id, action, action_value, agent, num_sims = res
+                agent_id, action, action_value, agent, num_sims, planner = res
                 actions[agent_id] = action
                 self._agents[agent_id] = agent
+                self._planners[agent_id] = planner
         return ActionCollection(actions)
 
     def _plan_single(self, agent_id):
@@ -46,7 +46,7 @@ class ParallelPlanner(pomdp_py.Planner):
             action_value = 0
             last_num_sims = 0
         return agent_id, action, action_value,\
-            self._agents[agent_id], last_num_sims
+            self._agents[agent_id], last_num_sims, self._planners[agent_id]
 
     def _update_belief(self, tup):
         agent_id, action, observation, next_agent_state, agent_state = tup

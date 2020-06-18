@@ -1,6 +1,8 @@
 from sciex import Trial, Event
+import matplotlib.pyplot as plt
 from search_and_rescue import *
 from search_and_rescue.planner.parallel_planner import *
+from search_and_rescue.experiments.plotting import *
 
 class SARTrial(Trial):
     def __init__(self, name, config, verbose=False):
@@ -66,6 +68,9 @@ class SARTrial(Trial):
 
         if visualize:
             viz, viz_state = self._init_viz(env, agents, controller_id)
+            plt.ion()
+            plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors)
+            plt.show(block=False)
 
         _find_actions_count = 0
         _total_reward = {aid: 0 for aid in agents}  # total, undiscounted reward        
@@ -78,6 +83,7 @@ class SARTrial(Trial):
             if visualize:
                 self._do_viz(env, agents, viz, viz_state,
                              comp_action, comp_observation)
+                plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors)                
             
             # Record
             for aid in agents:
@@ -136,6 +142,8 @@ class SARTrial(Trial):
                                                        object_id=objid).pose
             observation_fov = JointObservation(z_viz)
             viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov, None)
+
+            # Visualize belief
         img = viz.on_render()
 
     def _do_loop(self, env, planning_agent_ids, ma_planner):

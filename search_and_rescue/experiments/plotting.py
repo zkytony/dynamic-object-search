@@ -17,7 +17,7 @@ def plot_belief(ax, belief, cmap="Greys", size=None, zorder=1):
 
 def plot_agent_belief(ax, agent, object_colors):
     def get_cmap(object_colors, objid):
-        start_color = list(util.lighter(object_colors[objid], 0.7))
+        start_color = list(util.lighter(object_colors[objid], 0.9))
         end_color = list(object_colors[objid])
         for i in range(len(start_color)):
             start_color[i] /= 255.0
@@ -36,7 +36,7 @@ def plot_agent_belief(ax, agent, object_colors):
         cmap = get_cmap(object_colors, objid)
         plot_belief(ax, belief_obj, cmap=cmap, size=size, zorder=zorder)
         zorder += 1
-        size -= 100
+        size = size / len(agent.belief.object_beliefs)
     # Plot the agent
     cmap = get_cmap(object_colors, agent.agent_id)
     plot_belief(ax, agent.belief.object_belief(agent.agent_id),
@@ -44,11 +44,6 @@ def plot_agent_belief(ax, agent, object_colors):
     
         
 def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors):
-    # if axes is None:
-    #     axes = {}
-    #     for aid in agents:
-    #         plt.figure(aid)
-            # axes[aid] = plt.gca()
     for aid in agents:
         plt.figure(aid)
         plt.clf()
@@ -60,6 +55,7 @@ def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors):
         ax.set_ylim(0, grid_map.length)
         ax.set_yticks(np.arange(0, grid_map.length+1))
         ax.set_xticks(np.arange(0, grid_map.width+1))
+        ax.invert_yaxis()
         plt.grid()
         
         # Also plot obstacles (for clarity)
@@ -71,9 +67,8 @@ def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors):
             oyvals.append(y+0.5)
             ax.scatter(oxvals, oyvals, s=1000, c="black",
                        marker="x", zorder=1)
-        # fig.colorbar(ax=ax)
-        # fig.canvas.draw()
-        # fig.canvas.flush_events()
+        fig.canvas.draw()
+        fig.canvas.flush_events()
 
 
 ####### UNIT TESTS #########

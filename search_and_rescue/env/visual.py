@@ -61,6 +61,10 @@ class SARViz:
         random.seed()
         self._colors = colors
 
+    @property
+    def object_colors(self):
+        return self._colors
+
     def _make_gridworld_image(self, r):
         # Preparing 2d array
         w, l = self._env.grid_map.width, self._env.grid_map.length

@@ -228,7 +228,7 @@ class SARTrial(Trial):
 
 def unittest():
     from dynamic_mos.experiments.world_types import create_free_world
-    from dynamic_mos.example_worlds import place_objects
+    from search_and_rescue.utils import place_objects
 
     random.seed(100)
     # Create world
@@ -242,21 +242,21 @@ def unittest():
     laserstr = make_laser_sensor(90, (1, 3), 0.5, False)
     unlimitedstr = make_unlimited_sensor()
     mapstr = place_objects(mapstr,
-                           {"R": searcher_pose,
-                            # "P": victim_pose,
-                            "S": suspect_pose})
+                           [("R", searcher_pose),
+                            ("S", victim_pose),
+                            ("S", suspect_pose)])
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {"can_stay": False,
-                    "mdp_agent_ids": {5000},
+                    "mdp_agent_ids": {5000, 5001},
                     "look_after_move": True}
     solver_args = {"visualize": True,
                    "planning_time": 0.7,
                    "exploration_const": 200,
                    "discount_factor": 0.95,
                    "max_depth": 10,
-                   "greedy_searcher": True}
+                   "greedy_searcher": False}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,
               "world": worldstr}

@@ -232,7 +232,7 @@ def unittest():
 
     random.seed(100)
     # Create world
-    mapstr, free_locations = create_hallway_world(9, 2, 1, 3, 3)
+    mapstr, free_locations = create_free_world(6, 6) # create_hallway_world(9, 2, 1, 3, 3)
     # mapstr, free_locations = create_free_world(10,10)
     # mapstr, free_locations = create_free_world(10,10)#create_connected_hallway_world(9, 1, 1, 3, 3)#create_free_world(6, 6)
     #create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1) #create_free_world(6,6)#
@@ -243,19 +243,20 @@ def unittest():
     unlimitedstr = make_unlimited_sensor()
     mapstr = place_objects(mapstr,
                            {"R": searcher_pose,
-                            "P": victim_pose,
-                            "T": suspect_pose})
+                            # "P": victim_pose,
+                            "S": suspect_pose})
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {"can_stay": False,
-                    "mdp_agent_ids": {7000},
+                    "mdp_agent_ids": {5000},
                     "look_after_move": True}
     solver_args = {"visualize": True,
                    "planning_time": 0.7,
                    "exploration_const": 200,
                    "discount_factor": 0.95,
-                   "max_depth": 10}
+                   "max_depth": 10,
+                   "greedy_searcher": True}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,
               "world": worldstr}

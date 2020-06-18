@@ -16,6 +16,7 @@ class SARTrial(Trial):
         # Parameters
         can_stay = problem_args.get("can_stay", True)
         look_after_move = problem_args.get("look_after_move", True)
+        mdp_agents = problem_args.get("mdp_agents", set())
         
         # Building environment
         dims, robots, objects, obstacles, sensors, role_to_ids = interpret(worldstr)
@@ -35,6 +36,13 @@ class SARTrial(Trial):
                     prior = problem_args["prior"]
                 else:
                     prior = {agent_id: {env.state.pose(agent_id):1}}
+                # If agent is MDP, then its prior contains true state of all objects
+                if agent_id in mdp_agents:
+                    prior = {}
+                    for objid in env.state.object_states:
+                        if env.role_for(objid) in {"searcher", "suspect", "victim", "target"}:
+                            prior[objid] = {env.state.pose(objid):1.0}
+                    
                 agent = SARAgent.construct(agent_id, role, sensors[agent_id],
                                            role_to_ids, env.grid_map, motion_actions, look_after_move=look_after_move,
                                            prior=prior)
@@ -44,10 +52,10 @@ class SARTrial(Trial):
         
     def _solve(self, env, agents, solver_args, logging=False):
         # Parameters
-        max_depth = solver_args.get("max_depth", 10)
-        discount_factor = solver_args.get("discount_factor", 0.99)
+        max_depth = solver_args.get("max_depth", 15)
+        discount_factor = solver_args.get("discount_factor", 0.95)
         planning_time = solver_args.get("planning_time", 1.)
-        exploration_const = solver_args.get("exploration_const", 200)
+        exploration_const = solver_args.get("exploration_const", 1000)
         visualize = solver_args.get("visualize", False)
         max_time = solver_args.get("max_time", 500)
         max_steps = solver_args.get("max_steps", 150)
@@ -187,12 +195,12 @@ def unittest():
     laserstr = make_laser_sensor(90, (1, 2), 0.5, False)    
     mapstr = place_objects(mapstr,
                            {"R": searcher_pose,
-                            "V": victim_pose,
                             "S": suspect_pose})
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
-    problem_args = {"can_stay": False}
+    problem_args = {"can_stay": False,
+                    "mdp_agents": {5000}}
     solver_args = {"visualize": True}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,

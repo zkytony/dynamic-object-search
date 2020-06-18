@@ -4,13 +4,21 @@ import numpy as np
 from pomdp_py import util
 from search_and_rescue import ObjectObservation
 
-def plot_belief(ax, belief, cmap="Greys", size=None, zorder=1):
+def plot_belief(ax, hist, color, cmap="Greys", size=None, zorder=1, plot_thres=0.01):
     xvals, yvals, c = [], [], []
-    for state in belief:
-        x, y = state.pose[:2]
-        xvals.append(x+0.5)  # to show it between grid lines
-        yvals.append(y+0.5)
-        c.append(belief[state])
+
+    last_val = -1
+    for state in reversed(sorted(hist, key=hist.get)):
+        if last_val != -1:
+            color = util.lighter(color, 1-hist[state]/last_val)
+        if np.mean(np.array(color) / np.array([255, 255, 255])) < 0.99:
+            tx, ty = state['pose'][:2]
+            xvals.append(tx + 0.5)
+            yvals.append(ty + 0.5)
+            c.append((color[0]/255.0, color[1]/255.0, color[2]/255.0))
+            last_val = hist[state]
+            if last_val <= 0:
+                break
     if size is not None:
         size = [size] * len(xvals)
     ax.scatter(xvals, yvals, s=size, c=c, cmap=cmap, marker="s", zorder=zorder,
@@ -18,8 +26,8 @@ def plot_belief(ax, belief, cmap="Greys", size=None, zorder=1):
 
 def plot_agent_belief(ax, agent, object_colors):
     def get_cmap(object_colors, objid):
-        start_color = list(util.lighter(object_colors[objid], 0.9))
-        end_color = list(object_colors[objid])
+        start_color = list(util.lighter(object_colors[objid], 0.7))
+        end_color = list(util.lighter(object_colors[objid], -0.5))
         for i in range(len(start_color)):
             start_color[i] /= 255.0
             end_color[i] /= 255.0
@@ -35,13 +43,15 @@ def plot_agent_belief(ax, agent, object_colors):
             continue  # plot agent last so it appears on top.
         belief_obj = agent.belief.object_belief(objid)
         cmap = get_cmap(object_colors, objid)
-        plot_belief(ax, belief_obj, cmap=cmap, size=size, zorder=zorder)
+        plot_belief(ax, belief_obj.get_histogram(),
+                    object_colors[objid],
+                    cmap=cmap, size=size, zorder=zorder)
         zorder += 1
         size = size / len(agent.belief.object_beliefs)
     # Plot the agent
     cmap = get_cmap(object_colors, agent.agent_id)
-    plot_belief(ax, agent.belief.object_belief(agent.agent_id),
-                cmap=cmap, size=size, zorder=zorder)
+    plot_belief(ax, agent.belief.object_belief(agent.agent_id).get_histogram(),
+                object_colors[agent.agent_id], cmap=cmap, size=size, zorder=zorder)
 
 
 def plot_viz_observation(ax, z):

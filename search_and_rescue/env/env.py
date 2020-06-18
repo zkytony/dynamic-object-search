@@ -180,7 +180,7 @@ def interpret(worldstr):
     objects = {}    # objid -> ObjectState(pose)
     obstacles = set({})  # objid
     robots = {}  # robot_id -> RobotState(pose)
-    char_to_robots = {}  # str -> set of robot ids
+    char_to_robots = {"S":set(), "V":set(), "R":set()}  # str -> set of robot ids
     sensors = {}  # robot_id -> Sensor
     role_to_ids = {"suspect":set(),
                    "searcher":set(),
@@ -225,8 +225,6 @@ def interpret(worldstr):
                     role_to_ids["target"].add(objid)
 
                 if c in {"R", "V", "S"}:
-                    if c not in char_to_robots:
-                        char_to_robots[c] = set()
                     char_to_robots[c].add(objid)
                 
             else:

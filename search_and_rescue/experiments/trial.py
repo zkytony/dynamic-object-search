@@ -3,7 +3,9 @@ import copy
 import matplotlib.pyplot as plt
 from search_and_rescue import *
 from search_and_rescue.planner.parallel_planner import *
+from search_and_rescue.planner.greedy import *
 from search_and_rescue.experiments.plotting import *
+import random
 
 class SARTrial(Trial):
     def __init__(self, name, config, verbose=False):
@@ -18,6 +20,8 @@ class SARTrial(Trial):
         can_stay = problem_args.get("can_stay", True)
         look_after_move = problem_args.get("look_after_move", True)
         mdp_agent_ids = problem_args.get("mdp_agent_ids", set())
+        big = problem_args.get("big", 100)
+        small = problem_args.get("small", 10)
         
         # Building environment
         dims, robots, objects, obstacles, sensors, role_to_ids = interpret(worldstr)
@@ -28,7 +32,8 @@ class SARTrial(Trial):
         env = SAREnvironment.construct(role_to_ids,
                                        {**robots, **objects},
                                        grid_map, motion_actions, sensors,
-                                       look_after_move=look_after_move)        
+                                       look_after_move=look_after_move,
+                                       big=big, small=small)
 
         agents = {}
         for role in {"searcher", "suspect", "victim"}:
@@ -46,32 +51,37 @@ class SARTrial(Trial):
                     
                 agent = SARAgent.construct(agent_id, role, sensors[agent_id],
                                            role_to_ids, env.grid_map, motion_actions, look_after_move=look_after_move,
-                                           prior=prior)
+                                           prior=prior, sensors=sensors, big=big, small=small)
                 agents[agent_id] = agent
         # SOLVE
-        self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging)
+        self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging, look_after_move=look_after_move)
         
-    def _solve(self, env, agents, solver_args, mdp_agent_ids, logging=False):
+    def _solve(self, env, agents, solver_args, mdp_agent_ids, logging=False, look_after_move=False):
         # Parameters
         max_depth = solver_args.get("max_depth", 15)
         discount_factor = solver_args.get("discount_factor", 0.95)
         planning_time = solver_args.get("planning_time", 1.)
-        exploration_const = solver_args.get("exploration_const", 1000)
+        exploration_const = solver_args.get("exploration_const", 200)
         visualize = solver_args.get("visualize", False)
         max_time = solver_args.get("max_time", 500)
         max_steps = solver_args.get("max_steps", 150)
         save_path = solver_args.get("save_path", None)
-        controller_id = solver_args.get("controller_id", None)        
+        controller_id = solver_args.get("controller_id", None)
+        greedy_searcher = solver_args.get("greedy_searcher", False)
 
         # Build planners
         all_planners = {}
         for aid in agents:
-            planner = pomdp_py.POUCT(
-                discount_factor=discount_factor,
-                planning_time=planning_time,
-                exploration_const=exploration_const,
-                rollout_policy=agents[aid].policy_model,   # agent's policy model is preferred
-                action_prior=agents[aid].policy_model.action_prior)
+            if greedy_searcher and env.role_for(aid) == "searcher":
+                planner = GreedyPlanner(env.grid_map,
+                                        look_after_move=look_after_move)
+            else:
+                planner = pomdp_py.POUCT(
+                    discount_factor=discount_factor,
+                    planning_time=planning_time,
+                    exploration_const=exploration_const,
+                    rollout_policy=agents[aid].policy_model)   # agent's policy model is preferred
+                    # action_prior=agents[aid].policy_model.action_prior)
             all_planners[aid] = planner
         ma_planner = ParallelPlanner(all_planners, agents)
 
@@ -91,7 +101,7 @@ class SARTrial(Trial):
 
             if visualize:
                 viz_obs = self._do_viz(env, agents, viz, viz_state,
-                             comp_action, comp_observation)
+                                       comp_action, comp_observation, look_after_move=look_after_move)
                 plot_multi_agent_beliefs(agents, env.role_for,
                                          env.grid_map, viz.object_colors, viz_obs)
             
@@ -157,17 +167,20 @@ class SARTrial(Trial):
         return viz, viz_state
     
     def _do_viz(self, env, agents, viz, viz_state,
-                comp_action, comp_observation):
+                comp_action, comp_observation, look_after_move=False):
         # Sample observation
         viz_observations = {}
         for aid in agents:
-            z_viz = {}      # shows only relevant object
-            viz_state.set_object_state(aid, copy.deepcopy(env.state.object_states[aid]))
-            for objid in viz_state.object_states:
-                z_viz[objid] = env.sensors[aid].random(viz_state,
-                                                       comp_action,
-                                                       object_id=objid).pose
-            observation_fov = JointObservation(z_viz)
+            if not is_sensing(look_after_move, comp_action[aid]):
+                observation_fov = None
+            else:
+                z_viz = {}      # shows only relevant object
+                viz_state.set_object_state(aid, copy.deepcopy(env.state.object_states[aid]))
+                for objid in viz_state.object_states:
+                    z_viz[objid] = env.sensors[aid].random(viz_state,
+                                                           comp_action,
+                                                           object_id=objid).pose
+                observation_fov = JointObservation(z_viz)
             viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov, None)
             viz_observations[aid]= observation_fov
         img = viz.on_render()
@@ -217,22 +230,32 @@ def unittest():
     from dynamic_mos.experiments.world_types import create_free_world
     from dynamic_mos.example_worlds import place_objects
 
+    random.seed(100)
     # Create world
-    mapstr, free_locations = create_free_world(8,8)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+    mapstr, free_locations = create_hallway_world(9, 2, 1, 3, 3)
+    # mapstr, free_locations = create_free_world(10,10)
+    # mapstr, free_locations = create_free_world(10,10)#create_connected_hallway_world(9, 1, 1, 3, 3)#create_free_world(6, 6)
+    #create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1) #create_free_world(6,6)#
     searcher_pose = random.sample(free_locations, 1)[0]
     victim_pose = random.sample(free_locations - {searcher_pose}, 1)[0]
     suspect_pose = random.sample(free_locations - {victim_pose, searcher_pose}, 1)[0]    
-    laserstr = make_laser_sensor(90, (1, 3), 0.5, False)    
+    laserstr = make_laser_sensor(90, (1, 3), 0.5, False)
+    unlimitedstr = make_unlimited_sensor()
     mapstr = place_objects(mapstr,
                            {"R": searcher_pose,
-                            "V": victim_pose,
-                            "S": suspect_pose})
+                            "P": victim_pose,
+                            "T": suspect_pose})
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {"can_stay": False,
-                    "mdp_agent_ids": {7000}}
-    solver_args = {"visualize": True}
+                    "mdp_agent_ids": {7000},
+                    "look_after_move": True}
+    solver_args = {"visualize": True,
+                   "planning_time": 0.7,
+                   "exploration_const": 200,
+                   "discount_factor": 0.95,
+                   "max_depth": 10}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,
               "world": worldstr}

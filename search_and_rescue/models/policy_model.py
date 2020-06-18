@@ -59,8 +59,7 @@ class PolicyModel(pomdp_py.RolloutPolicy):
         valid_motions = None        
         if state is not None and self.motion_policy is not None:
             valid_motions =\
-                self.motion_policy.valid_motions(self.robot_id,
-                                                 state.pose(self.robot_id),
+                self.motion_policy.valid_motions(state.pose(self.robot_id),
                                                  self.all_motion_actions)
         return self._valid_actions(motions=valid_motions,
                                    can_find=can_find)
@@ -132,12 +131,12 @@ class GreedyActionPrior(pomdp_py.ActionPrior):
         for adv_id in self.adversary_ids:
             if hasattr(object_state, "objects_found") and adv_id in object_state["objects_found"]:
                 continue
-            cur_dist = euclidean_dist(state.pose(self.agent_id),
-                                      state.pose(adv_id))
+            cur_dist = euclidean_dist(state.pose(self.agent_id)[:2],
+                                      state.pose(adv_id)[:2])
             for next_object_pose in neighbors:
                 motion_action = neighbors[next_object_pose]
-                next_dist = euclidean_dist(next_object_pose,
-                                           state.pose(adv_id))
+                next_dist = euclidean_dist(next_object_pose[:2],
+                                           state.pose(adv_id)[:2])
                 if self._rules[adv_id] == "avoid":
                     if next_dist > cur_dist:
                         preferences.add((motion_action, self.num_visits_init, self.val_init))

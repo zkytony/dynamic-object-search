@@ -50,7 +50,7 @@ class JointObservation(pomdp_py.OOObservation):
             return self.objposes == other.objposes
 
     def __str__(self):
-        return "EnvObservation(%s)" % str(self.objposes)
+        return "JointObservation(%s)" % str(self.objposes)
 
     def __repr__(self):
         return str(self)

@@ -9,8 +9,12 @@ class StaticTransitionModel(pomdp_py.TransitionModel):
         self._objid = objid
         self._epsilon = epsilon
 
-    def probability(self, next_object_state, state, action):
-        if next_object_state != state.object_states[next_object_state['id']]:
+    def probability(self, next_object_state, state, action, **kwargs):
+        if isinstance(state, JointState):
+            object_state = state.object_states[next_object_state['id']]
+        else:
+            object_state = state
+        if next_object_state != object_state:
             return self._epsilon
         else:
             return 1.0 - self._epsilon

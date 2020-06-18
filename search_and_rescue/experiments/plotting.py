@@ -4,6 +4,9 @@ import numpy as np
 from pomdp_py import util
 from search_and_rescue import ObjectObservation
 
+def rgb2float(color):
+    return (color[0]/255.0, color[1]/255.0, color[2]/255.0)
+
 def plot_belief(ax, hist, color, cmap="Greys", size=None, zorder=1, plot_thres=0.01):
     xvals, yvals, c = [], [], []
 
@@ -15,7 +18,7 @@ def plot_belief(ax, hist, color, cmap="Greys", size=None, zorder=1, plot_thres=0
             tx, ty = state['pose'][:2]
             xvals.append(tx + 0.5)
             yvals.append(ty + 0.5)
-            c.append((color[0]/255.0, color[1]/255.0, color[2]/255.0))
+            c.append(rgb2float(color))
             last_val = hist[state]
             if last_val <= 0:
                 break
@@ -26,11 +29,8 @@ def plot_belief(ax, hist, color, cmap="Greys", size=None, zorder=1, plot_thres=0
 
 def plot_agent_belief(ax, agent, object_colors):
     def get_cmap(object_colors, objid):
-        start_color = list(util.lighter(object_colors[objid], 0.7))
-        end_color = list(util.lighter(object_colors[objid], -0.5))
-        for i in range(len(start_color)):
-            start_color[i] /= 255.0
-            end_color[i] /= 255.0
+        start_color = rgb2float(list(util.lighter(object_colors[objid], 0.7)))
+        end_color = rgb2float(list(util.lighter(object_colors[objid], -0.5)))
         cmap = LinearSegmentedColormap.from_list('CustomMap',
                                                  [tuple(start_color),
                                                   tuple(end_color)])
@@ -53,26 +53,31 @@ def plot_agent_belief(ax, agent, object_colors):
     plot_belief(ax, agent.belief.object_belief(agent.agent_id).get_histogram(),
                 object_colors[agent.agent_id], cmap=cmap, size=size, zorder=zorder)
 
-
 def plot_viz_observation(ax, z):
+    if z is None:
+        return
     xvals, yvals = [], []
     for objid in z.objposes:
         if z.for_obj(objid).pose != ObjectObservation.NULL:
+            assert z.for_obj(objid).objid == objid
             lx, ly = z.for_obj(objid).pose
             xvals.append(lx+0.5)
             yvals.append(ly+0.5)
     ax.scatter(xvals, yvals, s=1000, c="yellow", zorder=0)
         
-def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors, viz_observations={}):
+def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors,
+                             viz_observations={}):
     for aid in agents:
-        plt.figure(aid, figsize=(3,3))
+        plt.figure(aid, figsize=(max(3, round(int(grid_map.width/3))),
+                                 max(3, round(int(grid_map.length/3)))))
         plt.clf()
         fig = plt.gcf()
         ax = plt.gca()
         plot_agent_belief(ax, agents[aid], object_colors)
         if aid in viz_observations:
             plot_viz_observation(ax, viz_observations[aid])
-        ax.set_title("Agent %d (%s)" % (aid, role_for(aid)))
+        ax.set_title("Agent %d (%s)" % (aid, role_for(aid)),
+                                        fontdict={"color": rgb2float(object_colors[aid])})
         ax.set_xlim(0, grid_map.width)
         ax.set_ylim(0, grid_map.length)
         ax.set_yticks(np.arange(0, grid_map.length+1))

@@ -44,7 +44,7 @@ class SAREnvironment(pomdp_py.Environment):
         # Inactive agent state won't be updated
         rewards = {}
 
-        # Any suspect becomes inactive?
+        # Any suspect/victim becomes inactive?
         for agent_id in action.actions:
             if isinstance(action[agent_id], FindAction):
                 next_object_state = self.transition_model[agent_id].sample(self.state, action[agent_id])
@@ -90,7 +90,7 @@ class SAREnvironment(pomdp_py.Environment):
     @classmethod
     def construct(self, role_to_ids, init_object_states,
                   grid_map, motion_actions, sensors,
-                  look_after_move=False):
+                  look_after_move=False, big=100, small=10):
         assert len(role_to_ids["searcher"]) <= 1, "Currently, only one searcher is allowed."
         if "target" not in role_to_ids:
             role_to_ids["target"] = set()
@@ -111,11 +111,11 @@ class SAREnvironment(pomdp_py.Environment):
             transition_models[objid] = t
 
             if objid in role_to_ids["searcher"]:
-                r = SearcherRewardModel(objid, role_to_ids=role_to_ids)
+                r = SearcherRewardModel(objid, role_to_ids=role_to_ids, big=big, small=small)
             if objid in role_to_ids["victim"]:
-                r = VictimRewardModel(objid, role_to_ids=role_to_ids)            
+                r = VictimRewardModel(objid, role_to_ids=role_to_ids, big=big, small=small)            
             if objid in role_to_ids["suspect"]:
-                r = SuspectRewardModel(objid, role_to_ids=role_to_ids)                
+                r = SuspectRewardModel(objid, sensors, role_to_ids=role_to_ids, big=big, small=small)
             reward_models[objid] = r
         tmodel = pomdp_py.OOTransitionModel(transition_models)
         rmodel = MultiAgentRewardModel(reward_models)
@@ -250,6 +250,8 @@ def interpret(worldstr):
                 sensor = Laser2DSensor(robot_id, **sensor_params)
             elif sensor_type == "proximity":
                 sensor = ProximitySensor(robot_id, **sensor_params)
+            elif sensor_type == "unlimited":
+                sensor = UnlimitedSensor(robot_id)
             else:
                 raise ValueError("Unknown sensor type %s" % sensor_type)
             sensors[robot_id] = sensor
@@ -307,6 +309,23 @@ def make_proximity_sensor(radius, occlusion):
     radiustr = "radius=%s" % str(radius)
     occstr = "occlusion_enabled=%s" % str(occlusion)
     return "proximity %s %s" % (radiustr, occstr)
+
+
+def make_unlimited_sensor():
+    """
+    Returns string representation of the laser scanner configuration.
+    For example:  "laser fov=90 min_range=1 max_range=10"
+
+    Args:p
+        fov (int or float): angle between the start and end beams of one scan (degree).
+        dist_range (tuple): (min_range, max_range)
+        angle_increment (int or float): angular distance between measurements (rad).
+        occlusion (bool): True if consider occlusion
+
+    Returns:
+        str: String representation of the laser scanner configuration.
+    """
+    return "unlimited"
 
 
 ####### UNIT TESTS ######

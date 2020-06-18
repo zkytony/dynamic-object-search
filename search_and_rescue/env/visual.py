@@ -137,12 +137,15 @@ class SARViz:
         cv2.line(img, (y+radius,x+radius), endpoint, color, 2)
 
     @staticmethod
-    def draw_observation(img, z, rx, ry, rth, r, size, color=(12,12,255)):
+    def draw_observation(img, z, rx, ry, rth, r, size, color=(12,12,255), border_color=None):
         assert type(z) == JointObservation, "%s != JointObservation" % (str(type(z)))
         radius = int(round(r / 2))
         for objid in z.objposes:
             if z.for_obj(objid).pose != ObjectObservation.NULL:
                 lx, ly = z.for_obj(objid).pose
+                if border_color is not None:
+                    cv2.circle(img, (ly*r+radius,
+                                     lx*r+radius), size+2, border_color, thickness=-1)
                 cv2.circle(img, (ly*r+radius,
                                  lx*r+radius), size, color, thickness=-1)
 
@@ -233,7 +236,8 @@ class SARViz:
             # Observation that covers the whole fov
             color = (200, 200, 12)
             SARViz.draw_observation(img, last_viz_observation,
-                                    rx, ry, rth, r, r//4, color=color)
+                                    rx, ry, rth, r, r//4, color=color,
+                                    border_color=self._colors[objid])
         if last_observation is not None:
             # Observation that correspond to detected objects
             color = (20, 20, 180)
@@ -333,6 +337,7 @@ def action_callback(viz, env, action):
     # State transition
     rewards = env.state_transition(ActionCollection({viz.controller_id: action}),
                                                     execute=True)
+    print(env.state.object_states[viz.controller_id])    
     # Sample observation
     z = {}      # shows only relevant object
     for objid in env.state.object_states:
@@ -342,6 +347,7 @@ def action_callback(viz, env, action):
                                                          action,
                                                          object_id=objid).pose
     observation = JointObservation(z)  # z is objposes
+    print(observation)
 
     # Update visualization
     viz_state = {}
@@ -378,18 +384,20 @@ def unittest(worldstr):
                                    {**robots, **objects},
                                    grid_map, motion_actions, sensors,
                                    look_after_move=True)
-    viz = SARViz(env, res=30, fps=30, controller_id=3000)
+    viz = SARViz(env, res=30, fps=30, controller_id=7000)
+    print(env.state.object_states[viz.controller_id])    
     viz.on_execute(action_callback)    
 
 if __name__ == '__main__':
-    mapstr, free_locations = create_free_world(6,6)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
-    
+    # mapstr, free_locations = create_free_world(6,6)#create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+    random.seed(100)
+    mapstr, free_locations = create_hallway_world(9, 2, 1, 3, 3)    
     searcher_pose = random.sample(free_locations, 1)[0]
     victim_pose = random.sample(free_locations - {searcher_pose}, 1)[0]
     suspect_pose = random.sample(free_locations - {victim_pose, searcher_pose}, 1)[0]
 
     mapstr = place_objects(mapstr,
                            {"R": searcher_pose,
-                            "V": victim_pose,
-                            "S": suspect_pose})
+                            "T": victim_pose,
+                            "P": suspect_pose})
     unittest(mapstr)

@@ -55,36 +55,38 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
 
     @property
     def grid_map(self):
-        return self._grid_mapx
+        return self._grid_map
 
     @property
     def legal_actions(self):
         return self._legal_actions
 
-    def valid_motions(self, robot_id, robot_pose, all_motion_actions):
+    def valid_motions(self, robot_pose, all_motion_actions):
         """
         Returns a set of MotionAction(s) that are valid to
         be executed from robot pose (i.e. they will not bump
         into obstacles). The validity is determined under
         the assumption that the robot dynamics is deterministic.
         """
-        valid = set({})
-        for motion_action in all_motion_actions:
-            if not isinstance(motion_action, MotionAction):
-                raise ValueError("This (%s) is not a motion action" % str(motion_action))
-
-            next_robot_pose = next_pose(robot_pose, motion_action.motion)
-            if (next_robot_pose[:2] in self._grid_map.obstacle_poses)\
-               or (not self._grid_map.within_bounds(next_robot_pose)):
-                next_robot_pose = robot_pose
-                
-            if next_robot_pose != robot_pose:
-                # robot moved --> valid motion
-                valid.add(motion_action)
-
+        valid = set(self._legal_actions[robot_pose[:2]])
         if Stay in all_motion_actions:
             valid.add(Stay)
+        # valid = set({})
+        # for motion_action in all_motion_actions:
+        #     if not isinstance(motion_action, MotionAction):
+        #         raise ValueError("This (%s) is not a motion action" % str(motion_action))
+
+        #     next_robot_pose = next_pose(robot_pose, motion_action.motion)
+        #     if (next_robot_pose[:2] in self._grid_map.obstacle_poses)\
+        #        or (not self._grid_map.within_bounds(next_robot_pose)):
+        #         next_robot_pose = robot_pose
                 
+        #     if next_robot_pose != robot_pose:
+        #         # robot moved --> valid motion
+        #         valid.add(motion_action)
+
+        # if Stay in all_motion_actions:
+        #     valid.add(Stay)
         return valid
 
     def get_neighbors(self, pose, all_motion_actions):
@@ -110,7 +112,7 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
         V = set({(x,y)    # all valid positions
                  for x in range(self._grid_map.width) 
                  for y in range(self._grid_map.length)
-                 if self._grid_mapwithin_bounds((x,y)) and (x,y) not in self._grid_map.obstacle_poses})
+                 if self._grid_map.within_bounds((x,y)) and (x,y) not in self._grid_map.obstacle_poses})
         position1 = position1[:2]  # If it is robot pose then it has length 3.
         S = set({})
         d = {v:float("inf")
@@ -126,13 +128,13 @@ class StochaisticPolicy(pomdp_py.GenerativeDistribution):
             for w in neighbors:
                 motion_action = neighbors[w]
                 cost_vw = motion_action.distance_cost
-                if d[v] + cost_vw < d[w]:
-                    d[w] = d[v] + cost_vw
-                    prev[w] = (v, motion_action)
+                if d[v] + cost_vw < d[w[:2]]:
+                    d[w[:2]] = d[v] + cost_vw
+                    prev[w[:2]] = (v, motion_action)
 
         # Return a path
         path = []
-        pair = prev[position2]
+        pair = prev[position2[:2]]
         if pair is None:
             if not return_actions:
                 path.append(position2)
@@ -189,7 +191,7 @@ class BasicMotionPolicy(StochaisticPolicy):
 
 class AdversarialPolicy(StochaisticPolicy):
     def __init__(self, adv_id, agent_id,
-                 grid_map, sensor_range, pr_stay=0.3,
+                 grid_map, sensor_range, pr_stay=1e-9,
                  rule="avoid", motion_actions=None):
         """With probability `pr_stay`, the object stays in place.
         With the complement probability, the agent moves to maintain
@@ -211,24 +213,26 @@ class AdversarialPolicy(StochaisticPolicy):
     def _adversarial_actions(self, adv_pose, agent_pose):
         """Maintain distance if possible. If not at all,
         then just return the legal actions at this adv pose"""
-        candidate_actions = []        
+        candidate_actions = []
+        assert len(adv_pose) == len(agent_pose)
+        assert len(adv_pose) == 2
         if self._rule == "keep":
             for action in self._legal_actions[adv_pose]:
-                next_dist = euclidean_dist(next_pose(adv_pose, action.motion), agent_pose)
+                next_dist = euclidean_dist(next_pose(adv_pose, action.motion)[:2], agent_pose)
                 if next_dist > self._sensor_range*math.sqrt(2):
                     candidate_actions.append(action)
         elif self._rule == "avoid":
             cur_dist = euclidean_dist(agent_pose, adv_pose)
-            for action in self._legal_actions[adv_pose[:2]]:
-                next_dist = euclidean_dist(next_pose(adv_pose, action.motion), agent_pose)
+            for action in self._legal_actions[adv_pose]:
+                next_dist = euclidean_dist(next_pose(adv_pose, action.motion)[:2], agent_pose)
                 if next_dist > cur_dist:
                     candidate_actions.append(action)
         elif self._rule == "chase":
             # Here the adv is actually chasing the agent (useful if
             # you want to use this to model a agent's policy (agent/adv swap)
             cur_dist = euclidean_dist(agent_pose, adv_pose)
-            for action in self._legal_actions[adv_pose[:2]]:
-                next_dist = euclidean_dist(next_pose(adv_pose[:2], action.motion), agent_pose)
+            for action in self._legal_actions[adv_pose]:
+                next_dist = euclidean_dist(next_pose(adv_pose, action.motion)[:2], agent_pose)
                 if next_dist < cur_dist:
                     candidate_actions.append(action)
         else:
@@ -253,7 +257,7 @@ class AdversarialPolicy(StochaisticPolicy):
                 or (diff_x == 0 and diff_y == 0)):
             return 1e-9
 
-        actions = self._adversarial_actions(cur_adv_pose, agent_pose)
+        actions = self._adversarial_actions(cur_adv_pose[:2], agent_pose[:2])
         if len(actions) == 0:
             # No adversarial actions possible.
             if cur_adv_pose == next_adv_pose:
@@ -276,10 +280,11 @@ class AdversarialPolicy(StochaisticPolicy):
 
     def random(self, state):
         adv_state = state.object_states[self._adv_id]
-        agent_state = state.object_states[self._agent_id]        
+        agent_state = state.object_states[self._agent_id]
         if random.uniform(0,1) > self._pr_stay:
             # move adversarially
-            candidate_actions = self._adversarial_actions(adv_state.pose, agent_state.pose)
+            candidate_actions = self._adversarial_actions(adv_state.pose[:2],
+                                                          agent_state.pose[:2])
             if len(candidate_actions) == 0:
                 # won't move, because no adversarial action
                 next_adv_pose = adv_state.pose
@@ -338,6 +343,11 @@ def unittest():
     adv = AdversarialPolicy(3, 4, grid_map, 3, motion_actions=motion_actions)
     print(adv.probability(next_object_state, state))
     print(adv.random(state))
+
+    start_position = (0,0,0)
+    end_position = (5,5,math.pi*2/3)
+    path = bmp.path_between(start_position, end_position, motion_actions)
+    print(path)
 
 if __name__ == '__main__':
     unittest()

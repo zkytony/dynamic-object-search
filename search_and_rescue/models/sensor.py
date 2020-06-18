@@ -109,7 +109,7 @@ class Laser2DSensor(NoisySensor):
             print("warn: manual assignment of rth=0")
         else:
             rx, ry, rth = agent_pose
-        dist = euclidean_dist(point, (rx,ry))
+        dist = euclidean_dist(point[:2], (rx,ry))
         bearing = (math.atan2(point[1] - ry, point[0] - rx) - rth) % (2*math.pi)  # bearing (i.e. orientation)
         return (dist, bearing)
 
@@ -139,55 +139,9 @@ class Laser2DSensor(NoisySensor):
         else:
             beam_map[bearing_key] = (dist, point)
 
-    # def observe(self, agent_pose, env_state):
-    #     """
-    #     Returns a MosObservation with this sensor model.
-    #     """
-    #     rx, ry, rth = agent_pose
-        
-    #     # Check every object
-    #     objposes = {}
-    #     beam_map = {}
-    #     for objid in env_state.object_states:
-    #         objposes[objid] = ObjectObservation.NULL
-    #         object_pose = env_state.object_states[objid]["pose"]
-    #         beam = self.shoot_beam(agent_pose, object_pose)
-
-    #         if not self._occlusion_enabled:
-    #             if self.valid_beam(*beam):
-    #                 d, bearing = beam  # distance, bearing
-    #                 lx = rx + int(round(d * math.cos(rth + bearing)))
-    #                 ly = ry + int(round(d * math.sin(rth + bearing)))                            
-    #                 objposes[objid] = (lx, ly)
-    #         else:
-    #             self._build_beam_map(beam, object_pose, beam_map=beam_map)
-
-    #     if self._occlusion_enabled:
-    #         # The observed objects are in the beam_map
-    #         for bearing_key in beam_map:
-    #             d, objid = beam_map[bearing_key]
-    #             lx = rx + int(round(d * math.cos(rth + bearing_key)))
-    #             ly = ry + int(round(d * math.sin(rth + bearing_key)))
-    #             objposes[objid] = (lx, ly)
-
-    #     return MosOOObservation(objposes)
-
     @property
     def sensing_region_size(self):
         raise NotImplementedError
-
-# class FovObservationModel(pomdp_py.ObservationModel):
-#     """Field of view observation model;
-#     Pasted from previous ObjectObservationModel"""
-#     def __init__(self, objid, sensor, dim, sigma=0, epsilon=1, look_after_move=False):
-#         """
-#         sigma and epsilon are parameters of the observation model (see paper),
-#         dim (tuple): a tuple (width, length) for the dimension of the world"""
-#         self._objid = objid
-#         self._sensor = sensor
-#         self.sigma = sigma
-#         self.epsilon = epsilon
-#         self._look_after_move = look_after_move
 
     # Functions related to computing the probability and random sampling of observation.
     def _compute_params(self, object_in_sensing_region):
@@ -271,7 +225,7 @@ class Laser2DSensor(NoisySensor):
         zi = self._sample_zi(event_occured, next_state.pose(object_id),
                              grid_map, argmax=argmax)
 
-        return ObjectObservation(self.agent_id, zi)
+        return ObjectObservation(object_id, zi)
 
     def mpe(self, next_state, action, object_id=None, grid_map=None):
         return self.random(next_state, action,
@@ -293,3 +247,37 @@ class Laser2DSensor(NoisySensor):
         else: # event == C
             zi = ObjectObservation.NULL
         return zi
+
+
+class UnlimitedSensor(NoisySensor):
+    def __init__(self, agent_id):
+        self.agent_id = agent_id
+        
+    def within_range(self, agent_pose, point):
+        """Returns true if the point is within range of the sensor; but the point might not
+        actually be visible due to occlusion or "gap" between beams"""
+        return True
+
+    def probability(self, observation, next_state, action, object_id=None, **kwargs):
+        assert object_id is not None, "Did not specify which object to create observation for"
+        assert isinstance(observation, ObjectObservation)
+        if observation.objid != object_id:
+            import pdb; pdb.set_trace()
+            return 1e-9
+
+        if isinstance(next_state, ObjectState):
+            object_pose = next_state.pose
+        else:
+            object_pose = next_state.object_poses(object_id)
+
+        if observation.pose != object_pose:
+            return 1e-9
+        else:
+            return 1.0 - 1e-9
+    
+    def random(self, next_state, action, object_id=None, **kwargs):
+        assert object_id is not None, "Did not specify which object to create observation for"
+        return ObjectObservation(object_id, next_state.pose(object_id)[:2])
+    
+    def mpe(self, next_state, action, **kwargs):
+        raise self.random(next_state, action, **kwargs)

@@ -27,7 +27,7 @@ class SARAgent(pomdp_py.Agent):
     @classmethod
     def construct(self, agent_id, agent_role, sensor, role_to_ids, grid_map, motion_actions,
                   look_after_move=False, num_visits_init=10, big=100, small=10,
-                  prior={}):
+                  prior={}, **kwargs):
         """
         prior (dict) mapping from object id to a dictionary (x,y,th) or (x,y) -> probability
         """
@@ -50,7 +50,7 @@ class SARAgent(pomdp_py.Agent):
                         for id2 in role_to_ids["suspect"]:
                             p = AdversarialPolicy(
                                 id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="chase")
+                                motion_actions=motion_actions, rule="avoid")
                             policies.append(p)
                         mpoli = MixedPolicy(objid, policies)
                     elif role == "victim":
@@ -59,7 +59,7 @@ class SARAgent(pomdp_py.Agent):
                         for id2 in role_to_ids["suspect"]:
                             p = AdversarialPolicy(
                                 id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="avoid")
+                                motion_actions=motion_actions, rule="chase")
                             policies.append(p)
                         mpoli = MixedPolicy(objid, policies)
                     elif role == "suspect":
@@ -68,12 +68,12 @@ class SARAgent(pomdp_py.Agent):
                         for id2 in role_to_ids["victim"]:
                             p = AdversarialPolicy(
                                 id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="chase")
+                                motion_actions=motion_actions, rule="avoid")
                             policies.append(p)
                         for id2 in role_to_ids["searcher"]:
                             p = AdversarialPolicy(
                                 id2, objid, grid_map, None,  # None: unknown sensor range
-                                motion_actions=motion_actions, rule="avoid")
+                                motion_actions=motion_actions, rule="chase")
                             policies.append(p)
                         mpoli = MixedPolicy(objid, policies)
                 motion_policies[objid] = mpoli
@@ -84,7 +84,7 @@ class SARAgent(pomdp_py.Agent):
 
         transition_model = JointTransitionModel(agent_id, sensor,
                                                 static_object_ids, dynamic_object_ids,
-                                                motion_policies)
+                                                motion_policies, look_after_move=look_after_move)
 
         # Construct observation model
         observation_model = SensorModel(static_object_ids | dynamic_object_ids,
@@ -92,7 +92,7 @@ class SARAgent(pomdp_py.Agent):
 
         # Construct policy model
         if agent_role == "searcher":
-            rules = {id2:"chase" for id2 in (role_to_ids["victim"] | role_to_ids["suspect"])}
+            rules = {id2:"chase" for id2 in (role_to_ids["victim"] | role_to_ids["suspect"] | role_to_ids["target"])}
         elif agent_role == "victim":
             rules = {id2:"avoid" for id2 in (role_to_ids["suspect"])}
         elif agent_role == "suspect":
@@ -100,20 +100,23 @@ class SARAgent(pomdp_py.Agent):
             rules_searcher = {id2:"avoid" for id2 in role_to_ids["searcher"]}
             rules = {**rules_victim, **rules_searcher}
             
-        action_prior = GreedyActionPrior(
-            agent_id, set(rules.keys()), motion_policies[agent_id],
-            rules, num_visits_init, big, look_after_move=look_after_move)
-        policy_model = PreferredPolicyModel(agent_role,
-                                            action_prior,
-                                            look_after_move=look_after_move)
+        # action_prior = GreedyActionPrior(
+        #     agent_id, set(rules.keys()), motion_policies[agent_id],
+        #     rules, num_visits_init, big, look_after_move=look_after_move)
+        # policy_model = PreferredPolicyModel(agent_role,
+        #                                     action_prior,
+        #                                     look_after_move=look_after_move)
+        policy_model = PolicyModel(agent_id, agent_role, motion_policy=motion_policies[agent_id],
+                                   look_after_move=look_after_move)
 
         # Construct reward model
         if agent_role == "searcher":
-            reward_model = SearcherRewardModel(agent_id, role_to_ids=role_to_ids)
+            reward_model = SearcherRewardModel(agent_id, role_to_ids=role_to_ids, big=big, small=small)
         elif agent_role == "victim":
-            reward_model = VictimRewardModel(agent_id, role_to_ids=role_to_ids)
+            reward_model = VictimRewardModel(agent_id, role_to_ids=role_to_ids, big=big, small=small)
         elif agent_role == "suspect":
-            reward_model = SuspectRewardModel(agent_id, role_to_ids=role_to_ids)
+            sensors = kwargs.get("sensors", {})
+            reward_model = SuspectRewardModel(agent_id, sensors, role_to_ids=role_to_ids, big=big, small=small)
 
         # Construct initial belief (histogram)
         init_belief = SARAgent.init_histogram_belief(agent_id, prior, role_to_ids, grid_map)

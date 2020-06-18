@@ -41,6 +41,8 @@ class ObjectSensorModel(pomdp_py.ObservationModel):
 
     def probability(self, obj_observation, next_state, action, **kwargs):
         assert isinstance(obj_observation, ObjectObservation)
+        if obj_observation.objid != self._objid:
+            import pdb; pdb.set_trace()
         if not is_sensing(self._look_after_move, action):
             # No observation should be received
             if obj_observation.pose == ObjectObservation.NULL:

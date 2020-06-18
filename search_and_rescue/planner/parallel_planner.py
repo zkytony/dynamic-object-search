@@ -4,6 +4,8 @@ import copy
 from search_and_rescue.env.action import ActionCollection
 from search_and_rescue.env.observation import ObservationCollection
 
+ANALYZE = False
+
 class ParallelPlanner(pomdp_py.Planner):
     def __init__(self, planners, agents):
         self._planners = planners
@@ -19,11 +21,11 @@ class ParallelPlanner(pomdp_py.Planner):
 
     def plan(self, agent_ids):
         # # Plan with all planners
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = executor.map(self._plan_single, agent_ids)
-        # results = []
-        # for agent_id in self._planners:
-        #     results.append(self._plan_single(agent_id))
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     results = executor.map(self._plan_single, agent_ids)
+        results = []
+        for agent_id in self._planners:
+            results.append(self._plan_single(agent_id))
 
         # Return a composite action
         actions = {}
@@ -38,10 +40,20 @@ class ParallelPlanner(pomdp_py.Planner):
     def _plan_single(self, agent_id):
         # if agent_id != self._robot_id:
         #     return None
+        print("plan single: %d" % agent_id)        
         action = self._planners[agent_id].plan(self._agents[agent_id])
         if isinstance(self._planners[agent_id], pomdp_py.POUCT):
             action_value = self._agents[agent_id].tree[action].value
             last_num_sims = self._planners[agent_id].last_num_sims
+
+            if ANALYZE:
+                # Output the value of each action
+                tree = self._agents[agent_id].tree
+                tree.print_children_value()
+                pomdp_py.print_tree(tree, max_depth=5)
+                pomdp_py.print_preferred_actions(tree, max_depth=10)
+                import pdb; pdb.set_trace()
+                
         else:
             action_value = 0
             last_num_sims = 0
@@ -91,20 +103,20 @@ class ParallelPlanner(pomdp_py.Planner):
         if agent_ids is None:
             agent_ids = set(self._agents.keys())        
 
-        with concurrent.futures.ProcessPoolExecutor() as executor:
-            results = executor.map(
-                self._update_belief,
-                ((agent_id, real_action[agent_id], real_observation[agent_id],
-                  next_state.object_states[agent_id], state.object_states[agent_id])
-                 for agent_id in agent_ids))
-        for agent_id, belief in results:
-            self._agents[agent_id].set_belief(belief)
+        # with concurrent.futures.ProcessPoolExecutor() as executor:
+        #     results = executor.map(
+        #         self._update_belief,
+        #         ((agent_id, real_action[agent_id], real_observation[agent_id],
+        #           next_state.object_states[agent_id], state.object_states[agent_id])
+        #          for agent_id in agent_ids))
+        # for agent_id, belief in results:
+        #     self._agents[agent_id].set_belief(belief)
 
-        # for agent_id in agent_ids:
-        #     self._update_belief((agent_id, real_action[agent_id],
-        #                          real_observation[agent_id],
-        #                          next_state.object_states[agent_id],
-        #                          state.object_states[agent_id]))
+        for agent_id in agent_ids:
+            self._update_belief((agent_id, real_action[agent_id],
+                                 real_observation[agent_id],
+                                 next_state.object_states[agent_id],
+                                 state.object_states[agent_id]))
         
         for agent_id in agent_ids:
             self._agents[agent_id].update_history(real_action[agent_id], real_observation[agent_id])

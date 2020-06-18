@@ -1,4 +1,5 @@
 from sciex import Trial, Event
+import copy
 import matplotlib.pyplot as plt
 from search_and_rescue import *
 from search_and_rescue.planner.parallel_planner import *
@@ -16,7 +17,7 @@ class SARTrial(Trial):
         # Parameters
         can_stay = problem_args.get("can_stay", True)
         look_after_move = problem_args.get("look_after_move", True)
-        mdp_agents = problem_args.get("mdp_agents", set())
+        mdp_agent_ids = problem_args.get("mdp_agent_ids", set())
         
         # Building environment
         dims, robots, objects, obstacles, sensors, role_to_ids = interpret(worldstr)
@@ -37,7 +38,7 @@ class SARTrial(Trial):
                 else:
                     prior = {agent_id: {env.state.pose(agent_id):1}}
                 # If agent is MDP, then its prior contains true state of all objects
-                if agent_id in mdp_agents:
+                if agent_id in mdp_agent_ids:
                     prior = {}
                     for objid in env.state.object_states:
                         if env.role_for(objid) in {"searcher", "suspect", "victim", "target"}:
@@ -47,10 +48,10 @@ class SARTrial(Trial):
                                            role_to_ids, env.grid_map, motion_actions, look_after_move=look_after_move,
                                            prior=prior)
                 agents[agent_id] = agent
-
-        self._solve(env, agents, solver_args, logging=logging)
+        # SOLVE
+        self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging)
         
-    def _solve(self, env, agents, solver_args, logging=False):
+    def _solve(self, env, agents, solver_args, mdp_agent_ids, logging=False):
         # Parameters
         max_depth = solver_args.get("max_depth", 15)
         discount_factor = solver_args.get("discount_factor", 0.95)
@@ -86,7 +87,7 @@ class SARTrial(Trial):
 
             # Case 1: All plan in parallel
             comp_action, comp_observation, reward, prev_state\
-                = self._do_loop(env, env.state.active_agents, ma_planner)
+                = self._do_loop(env, env.state.active_agents, ma_planner, mdp_agent_ids)
 
             if visualize:
                 viz_obs = self._do_viz(env, agents, viz, viz_state,
@@ -156,7 +157,7 @@ class SARTrial(Trial):
         img = viz.on_render()
         return viz_observations
 
-    def _do_loop(self, env, planning_agent_ids, ma_planner):
+    def _do_loop(self, env, planning_agent_ids, ma_planner, mdp_agent_ids):
         comp_action = ma_planner.plan(planning_agent_ids)
         prev_state = copy.deepcopy(env.state)
         reward = env.state_transition(comp_action, execute=True)
@@ -167,8 +168,18 @@ class SARTrial(Trial):
                 comp_action[agent_id])
             for agent_id in ma_planner.agents
         })
+        # Update belief for pomdp agents
+        pomdp_agent_ids = set(planning_agent_ids) - set(mdp_agent_ids)
         ma_planner.update(comp_action, comp_observation, copy.deepcopy(env.state),
-                          prev_state, agent_ids=planning_agent_ids)
+                          prev_state, agent_ids=pomdp_agent_ids)
+        # Update belief of mdp agents by feeding them the true object states.
+        for agent_id in mdp_agent_ids:
+            mdp_agent = ma_planner.agents[agent_id]
+            for objid in mdp_agent.cur_belief.object_beliefs:
+                next_obj_state = copy.deepcopy(env.state.object_states[objid])
+                new_belief = pomdp_py.Histogram({next_obj_state: 1.0})
+                mdp_agent.cur_belief.set_object_belief(objid, new_belief)
+            # print(mdp_agent.policy_model.get_all_actions(state=env.state))
         return comp_action, comp_observation, reward, prev_state
 
     def _do_info(self, i, comp_action, reward, _total_reward, ma_planner, env):
@@ -180,8 +191,6 @@ class SARTrial(Trial):
                 _step_info += "   NumSims: %d" % ma_planner.planners[agent_id].last_num_sims
             _step_info += "\n"
         return _step_info
-
-
 
 def unittest():
     from dynamic_mos.experiments.world_types import create_free_world
@@ -200,7 +209,7 @@ def unittest():
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {"can_stay": False,
-                    "mdp_agents": {5000}}
+                    "mdp_agent_ids": {5000, 7000}}
     solver_args = {"visualize": True}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,

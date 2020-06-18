@@ -151,11 +151,11 @@ def unittest():
     from search_and_rescue.models.grid_map import GridMap
     from search_and_rescue.models.motion_policy import BasicMotionPolicy
     grid_map = GridMap(10, 10,
-                       {0: (2,3), 5:(4,9)})
+                       {0: (2,3), 5:(4,1)})
     motion_actions = create_motion_actions(can_stay=True)    
     bmp = BasicMotionPolicy(3, grid_map, motion_actions)
     policy_model = PolicyModel(3, "victim", bmp, look_after_move=False)
-    state = JointState({3: VictimState(3,   (4,8,math.pi), (), True),
+    state = JointState({3: VictimState(3,   (4,0,math.pi), (), True),
                         4: SearcherState(4, (4,4), (), True),
                         0: ObstacleState(0, (2,3)),
                         5: ObstacleState(5, (4,9))})
@@ -173,9 +173,11 @@ def unittest():
     print("Avoid preferred actions:")
     print(avoid_preferred.rollout(state, ()))
     print(avoid_preferred.action_prior.get_preferred_actions(state, ()))
+    print(avoid_preferred.get_all_actions(state, ()))    
     print("Chase preferred actions:")
     print(chase_preferred.rollout(state, ()))
-    print(chase_preferred.action_prior.get_preferred_actions(state, ()))    
+    print(chase_preferred.action_prior.get_preferred_actions(state, ()))
+    print(chase_preferred.get_all_actions(state, ()))        
 
 
 if __name__ == '__main__':

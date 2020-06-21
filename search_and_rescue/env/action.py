@@ -79,6 +79,9 @@ class ActionCollection(pomdp_py.Action):
         else:
             return None
 
+    def __setitem__(self, agent_id, action):
+        self.actions[agent_id] = action
+
     def __str__(self):
         res = "ActionCollection\n"
         for agent_id in self.actions:

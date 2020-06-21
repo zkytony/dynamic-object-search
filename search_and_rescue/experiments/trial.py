@@ -9,6 +9,7 @@ import random
 
 class SARTrial(Trial):
     def __init__(self, name, config, verbose=False):
+        self.objects = {}
         super().__init__(name, config, verbose=verbose)
 
     def run(self, logging=False):
@@ -56,6 +57,7 @@ class SARTrial(Trial):
         # SOLVE
         self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging, look_after_move=look_after_move)
         
+        
     def _solve(self, env, agents, solver_args, mdp_agent_ids, logging=False, look_after_move=False):
         # Parameters
         max_depth = solver_args.get("max_depth", 15)
@@ -68,6 +70,7 @@ class SARTrial(Trial):
         save_path = solver_args.get("save_path", None)
         controller_id = solver_args.get("controller_id", None)
         greedy_searcher = solver_args.get("greedy_searcher", False)
+        game_mode = controller_id is not None
 
         # Build planners
         all_planners = {}
@@ -85,11 +88,14 @@ class SARTrial(Trial):
             all_planners[aid] = planner
         ma_planner = ParallelPlanner(all_planners, agents)
 
+        viz = None
         if visualize:
-            viz, viz_state = self._init_viz(env, agents, controller_id)
+            viz, viz_state = self._init_viz(env, agents, controller_id, game_mode=game_mode)
             plt.ion()
-            plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors)
+            plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors,
+                                     controller_id=controller_id)
             plt.show(block=False)
+            self.objects["viz"] = viz
 
         _find_actions_count = 0
         _total_reward = {aid: 0 for aid in agents}  # total, undiscounted reward        
@@ -97,13 +103,15 @@ class SARTrial(Trial):
 
             # Case 1: All plan in parallel
             comp_action, comp_observation, reward, prev_state\
-                = self._do_loop(env, env.state.active_agents, ma_planner, mdp_agent_ids)
+                = self._do_loop(env, env.state.active_agents, ma_planner, mdp_agent_ids,
+                                controller_id=controller_id, viz=viz)
 
             if visualize:
                 viz_obs = self._do_viz(env, agents, viz, viz_state,
                                        comp_action, comp_observation, look_after_move=look_after_move)
                 plot_multi_agent_beliefs(agents, env.role_for,
-                                         env.grid_map, viz.object_colors, viz_obs)
+                                         env.grid_map, viz.object_colors, viz_obs,
+                                         controller_id=controller_id)
             
             # Record
             for aid in agents:
@@ -150,7 +158,7 @@ class SARTrial(Trial):
                 break
             
 
-    def _init_viz(self, env, agents, controller_id=None):
+    def _init_viz(self, env, agents, controller_id=None, game_mode=False):
         # A state built for visualizing the fOV
         viz_state = {}
         z_viz = {}  # shows the whole FOV
@@ -160,10 +168,11 @@ class SARTrial(Trial):
                 viz_state[viz_objid] = ObstacleState(viz_objid, (x,y))
         viz_state = JointState(viz_state)
 
-        viz = SARViz(env, controller_id=controller_id)
+        viz = SARViz(env, controller_id=controller_id, game_mode=game_mode)
         if viz.on_init() == False:
             raise Exception("Visualization failed to initialize")        
-        img = viz.on_render()        
+        img = viz.on_render()
+        viz.record_game_state(img)
         return viz, viz_state
     
     def _do_viz(self, env, agents, viz, viz_state,
@@ -181,14 +190,23 @@ class SARTrial(Trial):
                                                            comp_action,
                                                            object_id=objid).pose
                 observation_fov = JointObservation(z_viz)
-            viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov, None)
+            viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov)
             viz_observations[aid]= observation_fov
         img = viz.on_render()
+        viz.record_game_state(img)        
         return viz_observations
 
-    def _do_loop(self, env, planning_agent_ids, ma_planner, mdp_agent_ids):
+    def _do_loop(self, env, planning_agent_ids, ma_planner, mdp_agent_ids,
+                 controller_id=None, viz=None):
         """DO the Agent-Environment Loop and Update the beliefs"""
-        comp_action = ma_planner.plan(planning_agent_ids)
+        comp_action = ma_planner.plan(set(planning_agent_ids) - set({controller_id}))
+        # If controller is is not None, then read input from user
+        if controller_id is not None:
+            assert viz is not None, "No visualization; Cannot read input from user."
+            action = viz.wait_for_action(interval=0.05)
+            comp_action[controller_id] = action
+            print("[ID %d] Action taken by user: %s" % (controller_id, str(action)))
+        
         prev_state = copy.deepcopy(env.state)
         reward = env.state_transition(comp_action, execute=True)
         comp_observation = ObservationCollection({
@@ -243,26 +261,29 @@ def unittest():
     unlimitedstr = make_unlimited_sensor()
     mapstr = place_objects(mapstr,
                            [("R", searcher_pose),
-                            ("S", victim_pose),
+                            # ("S", victim_pose),
                             ("S", suspect_pose)])
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {"can_stay": False,
-                    "mdp_agent_ids": {5000, 5001},
+                    "mdp_agent_ids": {},
                     "look_after_move": True}
     solver_args = {"visualize": True,
                    "planning_time": 0.7,
                    "exploration_const": 200,
                    "discount_factor": 0.95,
                    "max_depth": 10,
-                   "greedy_searcher": False}
+                   "greedy_searcher": False,
+                   "game_mode": True,
+                   "controller_id": 7000}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,
               "world": worldstr}
 
     trial = SARTrial("trial_0_test", config, verbose=True)
     trial.run(logging=True)
+    trial.objects["viz"].replay(interval=0.3)
 
 
 if __name__ == '__main__':

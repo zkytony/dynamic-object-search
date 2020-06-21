@@ -6,6 +6,7 @@ import math
 import numpy as np
 import random
 import copy
+import time
 from search_and_rescue.env.env import *
 from search_and_rescue.env.action import *
 from dynamic_mos.experiments.world_types import *
@@ -34,7 +35,12 @@ def object_color(objid, count):
 class SARViz:
     
     def __init__(self, env,
-                 res=30, fps=30, controller_id=None):
+                 res=30, fps=30, controller_id=None, game_mode=False):
+        """
+        If game mode is True, then will not show the environment image.
+        Instead, records the environment state. After game is over,
+        review the environment states by drawing them.
+        """
         self._env = env
 
         self._res = res
@@ -44,12 +50,13 @@ class SARViz:
         self._running = False
         self._fps = fps
         self._playtime = 0.0
+        self._game_mode = game_mode
 
         # Things to dynamically visualize/update
         self._last_observation = {}  # map from robot id to OOObservation
         self._last_viz_observation = {}  # map from robot id to OOObservation        
         self._last_action = {}  # map from robot id to Action
-        self._last_belief = {}  # map from robot id to OOBelief
+        self._img_history = []
 
         # Generate some colors, one per object
         colors = {}
@@ -112,7 +119,7 @@ class SARViz:
     def controller_id(self):
         return self._controller_id
     
-    def update(self, agent_id, action, observation, viz_observation, belief):
+    def update(self, agent_id, action, observation, viz_observation):
         """
         Update the visualization after there is new real action and observation
         and updated belief.
@@ -125,7 +132,15 @@ class SARViz:
         self._last_action[agent_id] = action
         self._last_observation[agent_id] = observation
         self._last_viz_observation[agent_id] = viz_observation
-        self._last_belief[agent_id] = belief
+
+    def record_game_state(self, img):
+        self._img_history.append(copy.deepcopy(img))
+
+    def replay(self, interval=0.5):
+        for img in self._img_history:
+            pygame.surfarray.blit_array(self._display_surf, img)
+            pygame.display.flip()
+            time.sleep(interval)
         
     @staticmethod
     def draw_agent(img, x, y, th, size, color=(255,12,12)):
@@ -148,39 +163,6 @@ class SARViz:
                                      lx*r+radius), size+2, border_color, thickness=-1)
                 cv2.circle(img, (ly*r+radius,
                                  lx*r+radius), size, color, thickness=-1)
-
-    # @staticmethod
-    # def draw_belief(img, belief, r, size, target_colors):
-    #     """belief (OOBelief)"""
-    #     radius = int(round(r / 2))
-
-    #     circle_drawn = {}  # map from pose to number of times drawn
-
-    #     for objid in belief.object_beliefs:
-    #         if isinstance(belief.object_belief(objid).random(), RobotState):
-    #             continue
-    #         hist = belief.object_belief(objid).get_histogram()
-    #         color = target_colors[objid]
-
-    #         last_val = -1
-    #         count = 0
-    #         for state in reversed(sorted(hist, key=hist.get)):
-    #             if state.objclass == 'target':
-    #                 if last_val != -1:
-    #                     color = util.lighter(color, 1-hist[state]/last_val)
-    #                 if np.mean(np.array(color) / np.array([255, 255, 255])) < 0.99:
-    #                     tx, ty = state['pose']
-    #                     if (tx,ty) not in circle_drawn:
-    #                         circle_drawn[(tx,ty)] = 0
-    #                     circle_drawn[(tx,ty)] += 1
-                        
-    #                     cv2.circle(img, (ty*r+radius,
-    #                                      tx*r+radius), size//circle_drawn[(tx,ty)], color, thickness=-1)
-    #                     last_val = hist[state]
-                        
-    #                     count +=1
-    #                     if last_val <= 0:
-    #                         break
 
     # PyGame interface functions
     def on_init(self):
@@ -229,9 +211,6 @@ class SARViz:
         r = res  # just shorter for resolution.
         last_observation = self._last_observation.get(objid, None)
         last_viz_observation = self._last_viz_observation.get(objid, None)
-        last_belief = self._last_belief.get(objid, None)
-        if last_belief is not None:
-            SARViz.draw_belief(img, last_belief, r, r//3, self._colors)
         if last_viz_observation is not None:
             # Observation that covers the whole fov
             color = (200, 200, 12)
@@ -265,7 +244,8 @@ class SARViz:
         # draw robot, a circle and a vector
         img = np.copy(self._img)
         self.render_objects(img, self._res)
-        pygame.surfarray.blit_array(display_surf, img)
+        if not self._game_mode:
+            pygame.surfarray.blit_array(display_surf, img)
         return img
 
     def on_event(self, event):
@@ -305,6 +285,19 @@ class SARViz:
             if action is None:
                 return
             return action
+
+    def wait_for_action(self, interval=0.5):
+        action = None
+        printed = False
+        while action is None:
+            for event in pygame.event.get():
+                action = self.on_event(event)
+            if action is None:
+                time.sleep(interval)
+                if not printed:
+                    print("Please input action")
+                    printed = True
+        return action
 
     def on_loop(self):
         self._playtime += self._clock.tick(self._fps) / 1000.0

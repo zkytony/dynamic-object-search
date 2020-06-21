@@ -66,8 +66,10 @@ def plot_viz_observation(ax, z):
     ax.scatter(xvals, yvals, s=1000, c="yellow", zorder=0)
         
 def plot_multi_agent_beliefs(agents, role_for, grid_map, object_colors,
-                             viz_observations={}):
+                             viz_observations={}, controller_id=None):
     for aid in agents:
+        if (controller_id is not None) and (aid != controller_id):
+            continue
         plt.figure(aid, figsize=(max(3, round(int(grid_map.width/3))),
                                  max(3, round(int(grid_map.length/3)))))
         plt.clf()

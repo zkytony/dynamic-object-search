@@ -9,7 +9,7 @@ ABS_PATH = os.path.dirname(os.path.abspath(__file__))
 output_dir = os.path.join(ABS_PATH, "results")
 
 def main():
-    num_trials = 10
+    num_trials = 15
     seeds = [random.randint(1, 1000000) for i in range(500)]
 
     CAN_STAY = True
@@ -18,7 +18,7 @@ def main():
 
     all_ai_trials = []
     all_human_trials = []
-    for worldsize in [6, 10, 20]:
+    for worldsize in [5, 10]:
         
         for i in range(num_trials):
             
@@ -27,7 +27,7 @@ def main():
             mapstr, free_locations = create_free_world(worldsize, worldsize)
             suspect_pose = random.sample(free_locations, 1)[0]
             searcher_pose = random.sample(free_locations - {suspect_pose}, 1)[0]
-            laserstr = make_laser_sensor(90, (1,3), 0.5, False)
+            laserstr = make_laser_sensor(60, (1,3), 0.5, False)
             mapstr = place_objects(mapstr,
                                    [("R", searcher_pose),
                                     ("S", suspect_pose)])
@@ -40,7 +40,7 @@ def main():
             solver_args = {"planning_time": 0.7,
                            "exploration_const": 500,
                            "discount_factor": 0.95,
-                           "max_steps": 150,
+                           "max_steps": 60,
                            "max_depth": 30,
                            "greedy_searcher": False,
                            "controller_id": None}
@@ -52,16 +52,17 @@ def main():
             # Searcher varies
             config["problem_args"]["mdp_agent_ids"] = {}
             config["solver_args"]["visualize"] = False
-            ai_pomdp_trial = SARTrial("free-searcher-vary_%d_ai-pomdp" % seed,
+            config["solver_args"]["controller_id"] = None
+            ai_pomdp_trial = SARTrial("free-searcher-vary_%d_ai#pomdp-%d" % (seed, worldsize),
                                       copy.deepcopy(config))
             config["problem_args"]["mdp_agent_ids"] = {7000}
             config["solver_args"]["visualize"] = False
-            ai_mdp_trial = SARTrial("free-searcher-vary_%d_ai-mdp" % seed,
+            ai_mdp_trial = SARTrial("free-searcher-vary_%d_ai#mdp-%d" % (seed, worldsize),
                                     copy.deepcopy(config))
             config["problem_args"]["mdp_agent_ids"] = {}
             config["solver_args"]["controller_id"] = 7000
             config["solver_args"]["visualize"] = True
-            human_trial = SARTrial("free-searcher-vary_%d_human" % seed,
+            human_trial = SARTrial("free-searcher-vary_%d_human-%d" % (seed, worldsize),
                                    copy.deepcopy(config))
             all_ai_trials.append(ai_pomdp_trial)
             all_ai_trials.append(ai_mdp_trial)            
@@ -70,16 +71,17 @@ def main():
             # Suspect varies
             config["problem_args"]["mdp_agent_ids"] = {}
             config["solver_args"]["visualize"] = False
-            ai_pomdp_trial = SARTrial("free-suspect-vary_%d_ai-pomdp" % seed,
+            config["solver_args"]["controller_id"] = None
+            ai_pomdp_trial = SARTrial("free-suspect-vary_%d_ai#pomdp-%d" % (seed, worldsize),
                                       copy.deepcopy(config))
             config["problem_args"]["mdp_agent_ids"] = {5000}
             config["solver_args"]["visualize"] = False
-            ai_mdp_trial = SARTrial("free-suspect-vary_%d_ai-mdp" % seed,
+            ai_mdp_trial = SARTrial("free-suspect-vary_%d_ai#mdp-%d" % (seed, worldsize),
                                     copy.deepcopy(config))
             config["problem_args"]["mdp_agent_ids"] = {}
             config["solver_args"]["controller_id"] = 5000
             config["solver_args"]["visualize"] = True
-            human_trial = SARTrial("free-suspect-vary_%d_human" % seed,
+            human_trial = SARTrial("free-suspect-vary_%d_human-%d" % (seed, worldsize),
                                    copy.deepcopy(config))
             all_ai_trials.append(ai_pomdp_trial)
             all_ai_trials.append(ai_mdp_trial)            

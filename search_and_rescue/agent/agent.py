@@ -149,8 +149,8 @@ class SARAgent(pomdp_py.Agent):
                             for th in MotionAction.ORIENTATIONS:
                                 pose = (*free_loc, th)
                                 state = SARAgent.build_state(id2, role, pose)
-                        hist[state] = 1.0
-                        total_prob += hist[state]
+                                hist[state] = 1.0
+                                total_prob += hist[state]
                 for state in hist:
                     hist[state] /= total_prob
 

@@ -240,7 +240,6 @@ class SARTrial(Trial):
         if controller_id is not None:
             assert viz is not None, "No visualization; Cannot read input from user."
             action = viz.wait_for_action(interval=0.03)
-            import pdb; pdb.set_trace()
             agent_action_space = ma_planner.agents[controller_id]\
                                            .action_space(env.state[controller_id],
                                                          history="own")

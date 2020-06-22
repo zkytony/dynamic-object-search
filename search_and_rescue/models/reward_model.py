@@ -4,7 +4,6 @@ from search_and_rescue.env.state import *
 
 class SARRewardModel(pomdp_py.RewardModel):
     def __init__(self, agent_id, big=100, small=1, role_to_ids={}):
-        print(small)
         self._agent_id = agent_id
         self.big = big
         self.small = small

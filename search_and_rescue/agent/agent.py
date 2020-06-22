@@ -24,8 +24,13 @@ class SARAgent(pomdp_py.Agent):
                          observation_model=observation_model,
                          reward_model=reward_model)
 
+    def action_space(self, state=None, history=None):
+        if history == "own":
+            history = self.history
+        return self.policy_model.get_all_actions(state=state, history=history)
+
     @classmethod
-    def construct(self, agent_id, agent_role, sensor, role_to_ids, grid_map, motion_actions,
+    def construct(cls, agent_id, agent_role, sensor, role_to_ids, grid_map, motion_actions,
                   look_after_move=False, num_visits_init=10, big=100, small=10,
                   prior={}, **kwargs):
         """

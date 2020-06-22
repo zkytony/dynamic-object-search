@@ -108,7 +108,7 @@ class SARTrial(Trial):
         
         viz, viz_state = self._init_viz(env, agents, controller_id,
                                         game_mode=game_mode, render=visualize)
-        self.objects["viz"] = viz        
+        self.objects["viz"] = viz
         if visualize:
             plt.ion()
             plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors,
@@ -239,8 +239,16 @@ class SARTrial(Trial):
         # If controller is is not None, then read input from user
         if controller_id is not None:
             assert viz is not None, "No visualization; Cannot read input from user."
-            action = viz.wait_for_action(interval=0.05)
-            comp_action[controller_id] = action
+            action = viz.wait_for_action(interval=0.03)
+            import pdb; pdb.set_trace()
+            agent_action_space = ma_planner.agents[controller_id]\
+                                           .action_space(env.state[controller_id],
+                                                         history="own")
+            while action not in agent_action_space:
+                # Invalid action
+                print("Action %s is INVALID. Retry!" % str(action))
+                action = viz.wait_for_action(interval=0.03)
+            comp_action[controller_id] = action                
             print("[ID %d] Action taken by user: %s" % (controller_id, str(action)))
         
         prev_state = copy.deepcopy(env.state)

@@ -58,8 +58,13 @@ class PolicyModel(pomdp_py.RolloutPolicy):
                         can_find = True
         valid_motions = None        
         if state is not None and self.motion_policy is not None:
+            if isinstance(state, ObjectState):
+                agent_pose = state.pose
+            else:
+                agent_pose = state.pose(self.robot_id)
+                
             valid_motions =\
-                self.motion_policy.valid_motions(state.pose(self.robot_id),
+                self.motion_policy.valid_motions(agent_pose,
                                                  self.all_motion_actions)
         return self._valid_actions(motions=valid_motions,
                                    can_find=can_find)

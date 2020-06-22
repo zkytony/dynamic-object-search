@@ -65,6 +65,8 @@ class SuspectState(DynamicObjectState):
 class JointState(pomdp_py.OOState):
     def __init__(self, object_states):
         super().__init__(object_states)
+    def __getitem__(self, objid):
+        return self.object_states[objid]        
     def pose(self, objid):
         return self.object_states[objid]["pose"]
     def __str__(self):
@@ -76,6 +78,8 @@ class EnvState(pomdp_py.State):
     def __init__(self, active_agents, joint_state):
         self.active_agents = active_agents
         self.joint_state = joint_state
+    def __getitem__(self, objid):
+        return self.joint_state[objid]
     @property
     def object_states(self):
         return self.joint_state.object_states

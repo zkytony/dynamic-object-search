@@ -259,26 +259,19 @@ class SARViz:
             u = None  # control signal according to motion model
             action = None  # control input by user
 
-            # odometry model
-            if event.key == pygame.K_LEFT:
-                action = MoveLeft
-            elif event.key == pygame.K_RIGHT:
-                action = MoveRight
-            elif event.key == pygame.K_UP:
-                action = MoveForward
-            elif event.key == pygame.K_DOWN:
-                action = MoveBackward
             # euclidean axis model
-            elif event.key == pygame.K_a:
+            if event.key == pygame.K_a:
                 action = MoveWest
             elif event.key == pygame.K_d:
                 action = MoveEast
-            elif event.key == pygame.K_s:
+            elif event.key == pygame.K_x:
                 action = MoveSouth
             elif event.key == pygame.K_w:
                 action = MoveNorth
             elif event.key == pygame.K_SPACE:
                 action = Look
+            elif event.key == pygame.K_s:
+                action = Stay     
             elif event.key == pygame.K_RETURN:
                 action = Find
                 

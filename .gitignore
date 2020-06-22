@@ -132,6 +132,7 @@ dmypy.json
 dynamic_mos/experiments/results
 dynamic_mos/results.pkl
 screenshots
+search_and_rescue/experiments/results
 
 \#*
 .\#*

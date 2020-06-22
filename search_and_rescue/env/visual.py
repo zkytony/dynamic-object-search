@@ -141,6 +141,10 @@ class SARViz:
             pygame.surfarray.blit_array(self._display_surf, img)
             pygame.display.flip()
             time.sleep(interval)
+
+    @property
+    def img_history(self):
+        return self._img_history
         
     @staticmethod
     def draw_agent(img, x, y, th, size, color=(255,12,12)):
@@ -179,9 +183,9 @@ class SARViz:
         self._myfont = pygame.font.SysFont('Comic Sans MS', 30)
         self._running = True
 
-    def on_render(self):
+    def on_render(self, display=True):
         # self._display_surf.blit(self._background, (0, 0))
-        img = self.render_env(self._display_surf)
+        img = self.render_env(self._display_surf, display=display)
         caption = "FPS: {0:.2f}".format(self._clock.get_fps())
         caption += " | " + self.ctrl_status()
         pygame.display.set_caption(caption)
@@ -240,11 +244,11 @@ class SARViz:
             elif self._env.role_for(objid) == "target":
                 self.render_single_target(img, objid, self._env.state.pose(objid), res)
 
-    def render_env(self, display_surf):
+    def render_env(self, display_surf, display=True):
         # draw robot, a circle and a vector
         img = np.copy(self._img)
         self.render_objects(img, self._res)
-        if not self._game_mode:
+        if (not self._game_mode) and display:
             pygame.surfarray.blit_array(display_surf, img)
         return img
 

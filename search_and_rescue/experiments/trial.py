@@ -2,17 +2,23 @@ from sciex import Trial, Event
 import copy
 import matplotlib.pyplot as plt
 from search_and_rescue import *
+from search_and_rescue.utils import save_images_and_compress
 from search_and_rescue.planner.parallel_planner import *
 from search_and_rescue.planner.greedy import *
 from search_and_rescue.experiments.plotting import *
+from search_and_rescue.experiments.result_types import *
 import random
 
 class SARTrial(Trial):
+
+    RESULT_TYPES = [RewardsResult, StatesResult, HistoryResult]
+    
     def __init__(self, name, config, verbose=False):
         self.objects = {}
         super().__init__(name, config, verbose=verbose)
 
     def run(self, logging=False):
+        ### Setup ###
         problem_args = self._config["problem_args"]
         solver_args = self._config["solver_args"]
         worldstr = self._config["world"]
@@ -23,6 +29,7 @@ class SARTrial(Trial):
         mdp_agent_ids = problem_args.get("mdp_agent_ids", set())
         big = problem_args.get("big", 100)
         small = problem_args.get("small", 10)
+        save_images = solver_args.get("save_images", True)
         
         # Building environment
         dims, robots, objects, obstacles, sensors, role_to_ids = interpret(worldstr)
@@ -54,9 +61,18 @@ class SARTrial(Trial):
                                            role_to_ids, env.grid_map, motion_actions, look_after_move=look_after_move,
                                            prior=prior, sensors=sensors, big=big, small=small)
                 agents[agent_id] = agent
+
+        ### Run ###
         # SOLVE
-        self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging, look_after_move=look_after_move)
-        
+        try:
+            self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging, look_after_move=look_after_move)
+        except KeyboardInterrupt:
+            print("Stopping...")
+        finally:
+            assert "viz" in self.objects
+            if save_images:
+                save_images_and_compress(self.objects["viz"].img_history,
+                                         self.trial_path, filename="screenshots")
         
     def _solve(self, env, agents, solver_args, mdp_agent_ids, logging=False, look_after_move=False):
         # Parameters
@@ -88,14 +104,17 @@ class SARTrial(Trial):
             all_planners[aid] = planner
         ma_planner = ParallelPlanner(all_planners, agents)
 
-        viz = None
+        viz, viz_state = self._init_viz(env, agents, controller_id, game_mode=game_mode)
         if visualize:
-            viz, viz_state = self._init_viz(env, agents, controller_id, game_mode=game_mode)
             plt.ion()
             plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors,
                                      controller_id=controller_id)
             plt.show(block=False)
             self.objects["viz"] = viz
+
+        _Rewards = []
+        _States = [copy.deepcopy(env.state)]
+        _History = []
 
         _find_actions_count = 0
         _total_reward = {aid: 0 for aid in agents}  # total, undiscounted reward        
@@ -106,9 +125,12 @@ class SARTrial(Trial):
                 = self._do_loop(env, env.state.active_agents, ma_planner, mdp_agent_ids,
                                 controller_id=controller_id, viz=viz)
 
-            if visualize:
-                viz_obs = self._do_viz(env, agents, viz, viz_state,
-                                       comp_action, comp_observation, look_after_move=look_after_move)
+            # Visualization; Will do viz, so that we can save the game state as an image.
+            viz_obs = self._do_viz(env, agents, viz, viz_state,
+                                   comp_action, comp_observation,
+                                   look_after_move=look_after_move,
+                                   render=visualize)
+            if visualize:                
                 plot_multi_agent_beliefs(agents, env.role_for,
                                          env.grid_map, viz.object_colors, viz_obs,
                                          controller_id=controller_id)
@@ -119,6 +141,9 @@ class SARTrial(Trial):
                     reward[aid] = float("-inf")
                 else:
                     _total_reward[aid] += reward[aid]
+            _Rewards.append(reward)
+            _States.append(copy.deepcopy(env.state))
+            _History += ((comp_action, comp_observation),)
 
             # Info
             _step_info = self._do_info(i, comp_action, reward, _total_reward, ma_planner, env)
@@ -157,6 +182,13 @@ class SARTrial(Trial):
                 # Suspects have been caught and targets found. Searcher won
                 break
             
+        results = [
+            RewardsResult(_Rewards),
+            StatesResult(_States),
+            HistoryResult(_History),
+        ]
+        return results            
+            
 
     def _init_viz(self, env, agents, controller_id=None, game_mode=False):
         # A state built for visualizing the fOV
@@ -176,7 +208,7 @@ class SARTrial(Trial):
         return viz, viz_state
     
     def _do_viz(self, env, agents, viz, viz_state,
-                comp_action, comp_observation, look_after_move=False):
+                comp_action, comp_observation, look_after_move=False, render=True):
         # Sample observation
         viz_observations = {}
         for aid in agents:
@@ -192,7 +224,8 @@ class SARTrial(Trial):
                 observation_fov = JointObservation(z_viz)
             viz.update(aid, comp_action[aid], comp_observation[aid], observation_fov)
             viz_observations[aid]= observation_fov
-        img = viz.on_render()
+
+        img = viz.on_render(display=render)  # Won't render if not asked, but still generate image.
         viz.record_game_state(img)        
         return viz_observations
 
@@ -248,9 +281,9 @@ def unittest():
     from dynamic_mos.experiments.world_types import create_free_world
     from search_and_rescue.utils import place_objects
 
-    random.seed(100)
+    random.seed(102)
     # Create world
-    mapstr, free_locations = create_free_world(6, 6) # create_hallway_world(9, 2, 1, 3, 3)
+    mapstr, free_locations = create_hallway_world(9, 2, 1, 3, 3)#create_free_world(6, 6) # create_hallway_world(9, 2, 1, 3, 3)
     # mapstr, free_locations = create_free_world(10,10)
     # mapstr, free_locations = create_free_world(10,10)#create_connected_hallway_world(9, 1, 1, 3, 3)#create_free_world(6, 6)
     #create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1) #create_free_world(6,6)#
@@ -261,30 +294,27 @@ def unittest():
     unlimitedstr = make_unlimited_sensor()
     mapstr = place_objects(mapstr,
                            [("R", searcher_pose),
-                            # ("S", victim_pose),
+                            ("T", victim_pose),
                             ("S", suspect_pose)])
     worldstr = equip_sensors(mapstr, {"S": laserstr,
                                       "V": laserstr,
                                       "R": laserstr})
-    problem_args = {"can_stay": False,
+    problem_args = {"can_stay": True,
                     "mdp_agent_ids": {},
                     "look_after_move": True}
     solver_args = {"visualize": True,
                    "planning_time": 0.7,
-                   "exploration_const": 200,
+                   "exploration_const": 500,
                    "discount_factor": 0.95,
-                   "max_depth": 10,
+                   "max_depth": 30,
                    "greedy_searcher": False,
-                   "game_mode": True,
-                   "controller_id": 7000}
+                   "controller_id": None}
     config = {"problem_args": problem_args,
               "solver_args": solver_args,
               "world": worldstr}
 
     trial = SARTrial("trial_0_test", config, verbose=True)
     trial.run(logging=True)
-    trial.objects["viz"].replay(interval=0.3)
-
 
 if __name__ == '__main__':
     unittest()

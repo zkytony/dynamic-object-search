@@ -10,16 +10,25 @@ def rgb2float(color):
 def plot_belief(ax, hist, color, cmap="Greys", size=None, zorder=1, plot_thres=0.01):
     xvals, yvals, c = [], [], []
 
+    # Hist by grid cell
+    hist2d = {}
+    for state in hist:
+        x, y = state["pose"][:2]
+        if (x,y) not in hist2d:
+            hist2d[(x,y)] = 0.0
+        hist2d[(x,y)] += hist[state]
+
+    # Aggregate the belief of different orientations for a given 2d point.
     last_val = -1
-    for state in reversed(sorted(hist, key=hist.get)):
+    for pose in reversed(sorted(hist2d, key=hist2d.get)):
         if last_val != -1:
-            color = util.lighter(color, 1-hist[state]/last_val)
+            color = util.lighter(color, 1-hist2d[pose]/last_val)
         if np.mean(np.array(color) / np.array([255, 255, 255])) < 0.99:
-            tx, ty = state['pose'][:2]
-            xvals.append(tx + 0.5)
-            yvals.append(ty + 0.5)
+            x, y = pose
+            xvals.append(x + 0.5)
+            yvals.append(y + 0.5)
             c.append(rgb2float(color))
-            last_val = hist[state]
+            last_val = hist2d[pose]
             if last_val <= 0:
                 break
     if size is not None:

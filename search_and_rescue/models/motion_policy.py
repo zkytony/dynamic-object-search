@@ -12,9 +12,13 @@ def next_pose(pose, action, motion_scheme="xy"):
                 pose[1] + action[1])
     elif len(pose) == 3:
         if motion_scheme == "xy":
+            if action[2] == -1:
+                th = pose[2]
+            else:
+                th = action[2]
             return (pose[0] + action[0],
                     pose[1] + action[1],
-                    action[2])
+                    th)
         else:
             rx, ry, rth = pose
             forward, angle = action.motion

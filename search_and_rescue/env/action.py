@@ -26,7 +26,7 @@ class MotionAction(Action):
     WEST = (-STEP_SIZE, 0, math.pi)
     NORTH = (0, -STEP_SIZE, 3*math.pi/2)
     SOUTH = (0, STEP_SIZE, math.pi/2)
-    STAY = (0,0,0)
+    STAY = (0,0,-1)
 
     def __init__(self, motion, distance_cost=STEP_SIZE, motion_name=None, observing=False):
         """

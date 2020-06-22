@@ -1,10 +1,10 @@
-from sciex import Experiment, Trial, Event,\
-    Result, YamlResult, PklResult, PostProcessingResult
+from sciex import *
 import numpy as np
 from scipy import stats
 import math
 import os
 import json
+import yaml
 import matplotlib.pyplot as plt
 from search_and_rescue import *
 
@@ -46,6 +46,7 @@ class RewardsResult(YamlResult):
                     all_rewards[aid].append(cum_reward)
             sample_size = len(results[specific_name])
             t_95 = stats.t.ppf(1-0.05, sample_size)
+            myresult[specific_name] = {}
             for aid in all_rewards:
                 myresult[specific_name][aid] = {}
                 myresult[specific_name][aid] = {'mean': np.mean(all_rewards[aid]),

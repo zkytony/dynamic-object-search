@@ -64,8 +64,9 @@ class SARTrial(Trial):
 
         ### Run ###
         # SOLVE
+        result = []
         try:
-            self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging, look_after_move=look_after_move)
+            result = self._solve(env, agents, solver_args, mdp_agent_ids, logging=logging, look_after_move=look_after_move)
         except KeyboardInterrupt:
             print("Stopping...")
         finally:
@@ -73,6 +74,7 @@ class SARTrial(Trial):
             if save_images:
                 save_images_and_compress(self.objects["viz"].img_history,
                                          self.trial_path, filename="screenshots")
+        return result
         
     def _solve(self, env, agents, solver_args, mdp_agent_ids, logging=False, look_after_move=False):
         # Parameters
@@ -103,14 +105,15 @@ class SARTrial(Trial):
                     # action_prior=agents[aid].policy_model.action_prior)
             all_planners[aid] = planner
         ma_planner = ParallelPlanner(all_planners, agents)
-
-        viz, viz_state = self._init_viz(env, agents, controller_id, game_mode=game_mode)
+        
+        viz, viz_state = self._init_viz(env, agents, controller_id,
+                                        game_mode=game_mode, render=visualize)
+        self.objects["viz"] = viz        
         if visualize:
             plt.ion()
             plot_multi_agent_beliefs(agents, env.role_for, env.grid_map, viz.object_colors,
                                      controller_id=controller_id)
             plt.show(block=False)
-            self.objects["viz"] = viz
 
         _Rewards = []
         _States = [copy.deepcopy(env.state)]
@@ -190,7 +193,7 @@ class SARTrial(Trial):
         return results            
             
 
-    def _init_viz(self, env, agents, controller_id=None, game_mode=False):
+    def _init_viz(self, env, agents, controller_id=None, game_mode=False, render=True):
         # A state built for visualizing the fOV
         viz_state = {}
         z_viz = {}  # shows the whole FOV
@@ -202,8 +205,8 @@ class SARTrial(Trial):
 
         viz = SARViz(env, controller_id=controller_id, game_mode=game_mode)
         if viz.on_init() == False:
-            raise Exception("Visualization failed to initialize")        
-        img = viz.on_render()
+            raise Exception("Visualization failed to initialize")
+        img = viz.on_render(display=render)
         viz.record_game_state(img)
         return viz, viz_state
     

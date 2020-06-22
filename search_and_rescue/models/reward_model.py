@@ -79,7 +79,10 @@ class SuspectRewardModel(SARRewardModel):
                 if not cur_in_range and next_in_range:
                     return -self.big
                 else:
-                    return -self.small
+                    if isinstance(action, MotionAction):
+                        return -self.small - action.distance_cost
+                    else:
+                        return -self.small
                 
         # for victim_id in self._role_to_ids["victim"]:
         #     cur_seen_victim = victim_id in state.object_states[self._agent_id]["fov_objects"]

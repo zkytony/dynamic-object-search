@@ -58,7 +58,7 @@ def save_images_and_compress(images, outdir, filename="images", img_type="png"):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         save_path = os.path.join(outdir, img_save_dir, "tmp_img%d.%s" % (i, img_type))
-        cv2.imwrite(savepath, img)
+        cv2.imwrite(save_path, img)
 
     # Then compress the image files in the outdir
     output_filepath = os.path.join(outdir, "%s.tar.gz" % filename)

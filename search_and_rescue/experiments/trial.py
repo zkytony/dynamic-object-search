@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from search_and_rescue import *
 from search_and_rescue.utils import save_images_and_compress
 from search_and_rescue.planner.parallel_planner import *
+from search_and_rescue.planner.simple import *
 from search_and_rescue.planner.greedy import *
 from search_and_rescue.experiments.plotting import *
 from search_and_rescue.experiments.result_types import *
@@ -90,14 +91,25 @@ class SARTrial(Trial):
         save_path = solver_args.get("save_path", None)
         controller_id = solver_args.get("controller_id", None)
         greedy_searcher = solver_args.get("greedy_searcher", False)
+        simple_suspect = solver_args.get("simple_suspect", False)
+        simple_searcher = solver_args.get("simple_searcher", False)        
         game_mode = controller_id is not None
 
         # Build planners
         all_planners = {}
         for aid in agents:
             if greedy_searcher and env.role_for(aid) == "searcher":
-                planner = GreedyPlanner(env.grid_map,
-                                        look_after_move=look_after_move)
+                planner = GreedyPlanner(look_after_move=look_after_move)
+            elif simple_searcher and env.role_for(aid) == "searcher":
+                suspect_id = list(env.ids_for("suspect"))[0]
+                adv_motion_policy = agents[suspect_id].transition_model[aid].motion_policy
+                planner = SimpleReactivePlanner("searcher", adv_motion_policy,
+                                                look_after_move=look_after_move)
+            elif simple_suspect and env.role_for(aid) == "suspect":
+                searcher_id = list(env.ids_for("searcher"))[0]
+                adv_motion_policy = agents[searcher_id].transition_model[aid].motion_policy
+                planner = SimpleReactivePlanner("suspect", adv_motion_policy,
+                                                look_after_move=look_after_move)
             else:
                 planner = pomdp_py.POUCT(
                     discount_factor=discount_factor,
@@ -294,8 +306,8 @@ def unittest():
 
     # random.seed(100)
     # Create world
-    # mapstr, free_locations = create_connected_hallway_world(9, 1, 1, 3, 3)#create_free_world(6, 6) # create_hallway_world(9, 2, 1, 3, 3)
-    mapstr, free_locations = create_free_world(10, 10)
+    mapstr, free_locations = create_connected_hallway_world(9, 1, 1, 3, 3)#create_free_world(6, 6) # create_hallway_world(9, 2, 1, 3, 3)
+    # mapstr, free_locations = create_free_world(10, 10)
     # mapstr, free_locations = create_free_world(10,10)#create_connected_hallway_world(9, 1, 1, 3, 3)#create_free_world(6, 6)
     #create_connected_hallway_world(9, 1, 1, 3, 3) # #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1) #create_free_world(6,6)#
     searcher_pose = random.sample(free_locations, 1)[0]
@@ -311,14 +323,16 @@ def unittest():
                                       "V": laserstr,
                                       "R": laserstr})
     problem_args = {"can_stay": False,
-                    "mdp_agent_ids": {7000},
+                    "mdp_agent_ids": {},
                     "look_after_move": True}
     solver_args = {"visualize": True,
                    "planning_time": 0.7,
                    "exploration_const": 500,
                    "discount_factor": 0.95,
                    "max_depth": 30,
-                   "greedy_searcher": False,
+                   "greedy_searcher": True,
+                   "simple_suspect": False,
+                   "simple_searcher": False,                   
                    "controller_id": None,
                    "save_images": False}
     config = {"problem_args": problem_args,

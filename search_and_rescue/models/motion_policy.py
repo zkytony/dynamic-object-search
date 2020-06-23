@@ -282,9 +282,10 @@ class AdversarialPolicy(StochaisticPolicy):
                         return (1.0 - self._pr_stay) / len(actions)
                 return 1e-9
 
-    def random(self, state):
+    def random(self, state, get_action=False):
         adv_state = state.object_states[self._adv_id]
         agent_state = state.object_states[self._agent_id]
+        action = None
         if random.uniform(0,1) > self._pr_stay:
             # move adversarially
             candidate_actions = self._adversarial_actions(adv_state.pose[:2],
@@ -292,6 +293,7 @@ class AdversarialPolicy(StochaisticPolicy):
             if len(candidate_actions) == 0:
                 # won't move, because no adversarial action
                 next_adv_pose = adv_state.pose
+                action = Stay
             else:
                 # randomly choose an action from candidates
                 action = random.choice(candidate_actions)
@@ -299,11 +301,15 @@ class AdversarialPolicy(StochaisticPolicy):
         else:
             # stay
             next_adv_pose = adv_state.pose
+            action = Stay
 
         next_adv_state = copy.deepcopy(adv_state)
         next_adv_state["pose"] = next_adv_pose
         next_adv_state["time"] = adv_state.time + 1
-        return next_adv_state
+        if get_action:
+            return action
+        else:
+            return next_adv_state
 
 
 class MixedPolicy(pomdp_py.GenerativeDistribution):
@@ -318,14 +324,14 @@ class MixedPolicy(pomdp_py.GenerativeDistribution):
             prob += mpoli.probability(next_object_state, state, **kwargs) * self._mpoli_weight
         return prob
 
-    def random(self, state):
+    def random(self, state, **kwargs):
         # First, pick a motion policy according to weight
         ## Note even though below is just a uniform sampling, we might (in the future)
         ## have non-uniform weights for the policies.
         mpoli_chosen = random.choices(
             self._motion_policies,
             weights=[self._mpoli_weight]*len(self._motion_policies), k=1)[0]
-        return mpoli_chosen.random(state)
+        return mpoli_chosen.random(state, **kwargs)
 
 
 

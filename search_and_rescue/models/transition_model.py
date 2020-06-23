@@ -96,6 +96,10 @@ class DynamicObjectTransitionModel(pomdp_py.TransitionModel):
         self._motion_policy = motion_policy
         self._epsilon = epsilon
 
+    @property
+    def motion_policy(self):
+        return self._motion_policy
+
     def probability(self, next_object_state, state, *args, **kwargs):
         return self._motion_policy.probability(next_object_state, state, **kwargs)
 

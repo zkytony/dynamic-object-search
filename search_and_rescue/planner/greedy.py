@@ -6,8 +6,7 @@ from search_and_rescue.env.observation import *
 
 class ManualPlanner(pomdp_py.Planner):
     """ONLY FOR SEARCHER"""
-    def __init__(self, grid_map, look_after_move=False):
-        self._grid_map = grid_map
+    def __init__(self, look_after_move=False):
         self._look_after_move = look_after_move
         self._find_next = False
         
@@ -25,8 +24,8 @@ class ManualPlanner(pomdp_py.Planner):
 class GreedyPlanner(ManualPlanner):
     # Greedily moves to the location of highest belief,
     # and look around. Take "Find" after seeing an object.
-    def __init__(self, grid_map, look_after_move=False):
-        super().__init__(grid_map, look_after_move=look_after_move)
+    def __init__(self, look_after_move=False):
+        super().__init__(look_after_move=look_after_move)
         self._actions = deque([])
 
     def plan(self, agent):

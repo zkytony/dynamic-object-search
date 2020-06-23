@@ -6,6 +6,8 @@ import os
 import json
 import yaml
 import matplotlib.pyplot as plt
+from matplotlib import rc
+rc('text', usetex=True)
 from search_and_rescue import *
 
 
@@ -140,9 +142,9 @@ def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
         elif plot_type == "detections":
             title = "Number of Detections \n vs."
         if "searcher" in global_name:
-            title += "Types of Searchers"
+            title += "Types of Searchers \n \\textbf{Higher Is Better}"
         elif "suspect" in global_name:
-            title += "Types of Suspect (i.e. Adversarial Target)"
+            title += "Types of Suspect (i.e. Adversarial Target) \n \\textbf{Lower Is Better}"
         results = gathered_results[global_name]
         
         fig = plt.figure()
@@ -188,7 +190,7 @@ def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
             i += 1
 
         plt.legend(loc="lower left")
-        ax.set_title(title)
+        ax.set_title(title, fontsize=12)
         ax.set_xlabel("World Size")
         ax.set_xticks(xvals + width*(len(means)-1)/2)
         ax.set_xticklabels(xvals)

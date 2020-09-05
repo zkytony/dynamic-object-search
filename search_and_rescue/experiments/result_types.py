@@ -5,10 +5,17 @@ import math
 import os
 import json
 import yaml
+import copy
 import matplotlib.pyplot as plt
 from matplotlib import rc
 rc('text', usetex=True)
 from search_and_rescue import *
+
+# METHOD NAMES
+GREEDY = "greedy (reactive)"
+MDP = "ai-mdp"
+POMDP = "ai-pomdp"
+HUMAN = "human"
 
 
 #### Actual results for experiments ####
@@ -68,6 +75,7 @@ class RewardsResult(YamlResult):
             json.dump(gathered_results, f, indent=4, sort_keys=True)
 
         plot_performance(gathered_results, plot_type="rewards")
+        plot_performance(gathered_results, plot_type="rewards", relative_to=HUMAN, suffix="ratio_plot")
             
         return True
 
@@ -116,6 +124,7 @@ class StatesResult(PklResult):
             json.dump(gathered_results, f, indent=4, sort_keys=True)
             
         plot_performance(gathered_results, plot_type="detections")
+        plot_performance(gathered_results, plot_type="detections", relative_to=HUMAN, suffix="ratio_plot")        
         
         return True
 
@@ -130,10 +139,11 @@ class HistoryResult(PklResult):
         return "history.pkl"    
 
 
-def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
+def plot_performance(gathered_results, suffix="plot", plot_type="rewards", relative_to=None):
     COLORS = {
         "ai-pomdp": "brown",
         "ai-mdp": "orange",
+        "greedy (reactive)": "pink",
         "human": "green"
     }    
     for global_name in gathered_results:
@@ -141,10 +151,20 @@ def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
             title = "Searcher's Cumulative Reward \n vs."
         elif plot_type == "detections":
             title = "Number of Detections \n vs."
+        
         if "searcher" in global_name:
-            title += "Types of Searchers \n \\textbf{Higher Is Better}"
+            title += "Types of Searchers"
+            if relative_to is None:
+                title += " \n \\textbf{Higher Is Better}"
+            else:
+                title += " \n \\textbf{Higher Is Better}"
         elif "suspect" in global_name:
-            title += "Types of Suspect (i.e. Adversarial Target) \n \\textbf{Lower Is Better}"
+            title += "Types of Suspect (i.e. Adversarial Target)"
+            if relative_to is None:
+                title += " \n \\textbf{Lower Is Better}"
+            else:
+                title += " \n \\textbf{Lower Is Better}"                
+        
         results = gathered_results[global_name]
         
         fig = plt.figure()
@@ -154,10 +174,14 @@ def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
         errs = {}
 
         for specific_name in results:
-            if "#mdp" in specific_name:
-                method_name = "ai-mdp"
+            if "#simple" in specific_name:
+                method_name = GREEDY
+            elif "#mdp" in specific_name:
+                method_name = MDP
             elif "#pomdp" in specific_name:
-                method_name = "ai-pomdp"
+                method_name = POMDP
+            elif "human" in specific_name:
+                method_name = HUMAN
             else:
                 print("Unhandled method: %s" % specific_name)
                 continue
@@ -175,6 +199,16 @@ def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
             elif plot_type == "detections":
                 means[method_name][worldsize] = results[specific_name]["mean"]
                 errs[method_name][worldsize] = results[specific_name]["conf-95"]
+
+        if relative_to is not None:
+            original_means = copy.deepcopy(means)
+            for method_name in means:
+                for worldsize in means[method_name]:
+                    if original_means[relative_to][worldsize] < 0:
+                        means[method_name][worldsize] /= -original_means[relative_to][worldsize]
+                    else:
+                        means[method_name][worldsize] /= original_means[relative_to][worldsize]
+                    errs[method_name][worldsize] = 0.0  # Remove the error from the relative ratio plot.
             
         xvals = np.array(sorted(xvals))
         width = 0.4
@@ -189,15 +223,21 @@ def plot_performance(gathered_results, suffix="plot", plot_type="rewards"):
                     color=COLORS[method_name])
             i += 1
 
-        plt.legend(loc="lower left")
+        plt.legend(loc="lower center")
         ax.set_title(title, fontsize=12)
         ax.set_xlabel("World Size")
         ax.set_xticks(xvals + width*(len(means)-1)/2)
         ax.set_xticklabels(xvals)
         if plot_type == "rewards":
-            ax.set_ylabel("Cumulative Reward")
+            if relative_to is None:
+                ax.set_ylabel("Cumulative Reward")
+            else:
+                ax.set_ylabel("Ratio against %s" % relative_to)
             fig.savefig("rewards-%s-%s.png" % (global_name, suffix))
         elif plot_type == "detections":
-            ax.set_ylabel("Number of Detected Objects")
+            if relative_to is None:
+                ax.set_ylabel("Number of Detected Objects")
+            else:
+                ax.set_ylabel("Ratio against %s" % relative_to)
             fig.savefig("detections-%s-%s.png" % (global_name, suffix))
         plt.clf()

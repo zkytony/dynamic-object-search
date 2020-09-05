@@ -5,6 +5,7 @@ from search_and_rescue.models.motion_policy import BasicMotionPolicy
 from search_and_rescue.models.transition_model import *
 from search_and_rescue.models.sensor import *
 from search_and_rescue.models.reward_model import *
+import itertools
 
 class MultiAgentRewardModel(pomdp_py.RewardModel):
     def __init__(self, reward_models):
@@ -355,7 +356,38 @@ def unittest(worldstr):
                                    look_after_move=look_after_move)
     print(env.state)
     return env, role_to_ids, sensors, motion_actions, look_after_move
+
+
+### Make joint state space
+def make_joint_state_space(env):
+    # Return list of all possible states in the joint state space for the given object ids.
+    # Ignore the states of the obstacles
+
+    target_ids = env.ids_for("target") | env.ids_for("suspect")
+
+    states = {}
+    for objid in object_ids:
+        states[objid] = set()
+        for x in range(env.grid_map.width):
+            for y in range(env.grid_map.length):
+                if env.role_for(objid) == "obstacle":
+                    continue
+                elif env.role_for(objid) == "target":
+                    s = TargetState(objid, (x,y))
+                else:
+                    for th in MotionAction.ORIENTATIONS:
+                        if env.role_for(objid) == "searcher":
+                            # Get all possible combinations of object detections.
+                            # Yes, I know this is very expensive.
+                            for l in range(len(target_ids)):
+                                for comb in itertools.combinations(target_ids, l):
+                                    # time doesn't matter for any reward calculation.
+                                    s = SearcherState(objid, (x,y,th), comb, True)
+    
     
 
 if __name__ == '__main__':
     unittest(worldstr)
+
+
+    

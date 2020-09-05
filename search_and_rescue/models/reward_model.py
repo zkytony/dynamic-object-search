@@ -35,7 +35,7 @@ class SearcherRewardModel(SARRewardModel):
         # Detected all objects
         if self._target_ids.issubset(state.object_states[self._agent_id]['objects_found']):
             return 0  # no reward or penalty; the task is finished.
-
+        
         if isinstance(action, MotionAction):
             reward = reward - self.small - action.distance_cost
 
@@ -56,6 +56,7 @@ class SearcherRewardModel(SARRewardModel):
                 else:
                     # Has new detection. Award.
                     reward += self.big
+
         return reward
 
     

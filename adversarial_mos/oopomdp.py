@@ -33,7 +33,7 @@ class ParallelPlanner(pomdp_py.Planner):
         return self._agents
 
     def plan(self, agent_ids):
-        # # Plan with all planners
+        # Plan with all planners
         with concurrent.futures.ProcessPoolExecutor() as executor:
             results = executor.map(self._plan_single, agent_ids)
         # results = []
@@ -180,7 +180,8 @@ class AdversarialTrial(Trial):
     def run(self, logging=False):
         robot_char = "r"
         robot_id = interpret_robot_id(robot_char)        
-        mapstr, free_locations = create_hallway_world(9, 2, 1, 2, 3) #create_free_world(6,6) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        # mapstr, free_locations = create_connected_hallway_world(9, 1, 1, 3, 3) #create_free_world(6,6) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)
+        mapstr, free_locations = create_free_world(4,4) #create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
         # mapstr, free_locations = create_two_room_loop_world(5,5,3,1,1)#create_two_room_world(4,4,3,1)        
 
         robot_pose = random.sample(free_locations, 1)[0]

@@ -18,6 +18,7 @@
 # both agents are met face to face, then the pursuer wins. Otherwise, the
 # evader wins. Whenever a door is open, the game ends.
 from ipomdp.examples.domain import *
+import random
     
 #------Transition, Observation, Reward, Policy models------#
 # Transition Model
@@ -57,84 +58,112 @@ class TransitionModel(pomdp_py.TransitionModel):
         return next_state
 
 
-# class ObservationModel(pomdp_py.ObservationModel):
-#     """This problem is small enough for the probabilities to be directly given
-#     externally"""
-#     def __init__(self, role):
-#         self.role = role
+class ObservationModel(pomdp_py.ObservationModel):
+    """
+    Let i be the "self" agent and j be the "other" agent.
+    If i moves or opens door, there is no observation.
+    If i stays, and j moves or opens door, then i hears noise (vice versa)
+    The observation model is only for a single agent.
+    """
+    def __init__(self, role, certainty=0.85):
+        self.role = role
+        self.certainty = certainty
 
-#     def probability(self, observation, next_state, action, normalized=False, **kwargs):
-#         """
-#         observation (observation)
-#         next_state (JointState)
-#         action (JointAction)
-#         """        
-#         if observation == "noise":
-#             if next_state.pstate.side == next_state.estate.side:
-#                 return 0.85  # both agents are on the same side
-#             else:
-#                 return 0.15
-#         elif observation == "silence":
-#             if next_state
+    def probability(self, observation, next_state, action, normalized=False, **kwargs):
+        """
+        observation (observation)
+        next_state (JointState)
+        action (JointAction)
+        """
+        ai = action.for_role(self.role)
+        aj = action.for_role(other_role(self.role))
+        if ai.name == "stay":
+            if aj.name != "stay":
+                # There is noise
+                if observation.name == "noise":
+                    return self.certainty
+                else:
+                    return 1.0 - self.certainty
+        return 0.5  # no information otherwise
 
+    def sample(self, next_state, action, normalized=False, **kwargs):
+        ai = action.for_role(self.role)
+        aj = action.for_role(other_role(self.role))
+        if ai.name == "stay":
+            if aj.name != "stay":
+                if random.uniform(0,1) > self.certainty:
+                    return Observation("noise")
+                else:
+                    return Observation("silence")
 
+        if random.uniform(0,1) > 0.5:
+            return Observation("noise")
+        else:
+            return Observation("silence")
+
+# Reward Model
+class RewardModel(pomdp_py.RewardModel):
+    """
+    If any one opens door and both agents appear
+    on the same side, then there is a reward or penalty
+    """
+    def __init__(self, role):
+        self.role = role
         
-#         return self._probs[next_state][action][observation]
-
-#     def sample(self, next_state, action, normalized=False, **kwargs):
-#         return self.get_distribution(next_state, action).random()
-
-#     def argmax(self, next_state, action, normalized=False, **kwargs):
-#         """Returns the most likely observation"""
-#         return max(self._probs[next_state][action], key=self._probs[next_state][action].get)
-
+    def _reward_func(self, state, action):
+        ai = action.for_role(self.role)
+        aj = action.for_role(other_role(self.role))
+        if ai.name == "open-door"\
+           or aj.name == "open-door":
+            si = state.for_role(self.role)
+            sj = state.for_role(other_role(self.role))
+            if si.side == sj.side:
+                if self.role == "pursuer":
+                    return 100
+                else:
+                    return -100
+            else:
+                if self.role == "pursuer":
+                    return -100
+                else:
+                    return 100
+        return -1
     
+    def sample(self, state, action, next_state, normalized=False, **kwargs):
+        # deterministic
+        return self.argmax(state, action, next_state, normalized=normalized, **kwargs)
 
-# # Reward Model
-# class RewardModel(pomdp_py.RewardModel):
-#     def __init__(self, scale=1):
-#         self._scale = scale
-#     def _reward_func(self, state, action):
-#         reward = 0
-#         if action == "open-left":
-#             if state== "tiger-right":
-#                 reward += 10 * self._scale
-#             else:
-#                 reward -= 100 * self._scale
-#         elif action == "open-right":
-#             if state== "tiger-left":
-#                 reward += 10 * self._scale
-#             else:
-#                 reward -= 100 * self._scale
-#         elif action == "listen":
-#             reward -= 1 * self._scale
-#         return reward
+    def argmax(self, state, action, next_state, normalized=False, **kwargs):
+        """Returns the most likely reward"""
+        return self._reward_func(state, action)
+
+# Policy Model
+class PolicyModel(pomdp_py.RandomRollout):
+    """A random model"""
+    def __init__(self, role):
+        self.role = role
+        if self.role == "pursuer":
+            self.actions = [PAction("move"), PAction("stay"), PAction("open-door")]
+        else:
+            self.actions = [EAction("move"), EAction("stay"), EAction("open-door")]            
     
-#     def sample(self, state, action, next_state, normalized=False, **kwargs):
-#         # deterministic
-#         return self.argmax(state, action, next_state, normalized=normalized, **kwargs)
-
-#     def argmax(self, state, action, next_state, normalized=False, **kwargs):
-#         """Returns the most likely reward"""
-#         return self._reward_func(state, action)
-
-# # Policy Model
-# class PolicyModel(pomdp_py.RandomRollout):
-#     """This is an extremely dumb policy model; To keep consistent
-#     with the framework."""
-#     def sample(self, state, normalized=False, **kwargs):
-#         return self.get_all_actions().random()
+    def sample(self, state, **kwargs):
+        return random.sample(self.get_all_actions(**kwargs), 1)[0]    
     
-#     def get_all_actions(self, **kwargs):
-#         return ACTIONS
-
+    def get_all_actions(self, **kwargs):
+        return self.actions
+    
+    def rollout(self, state, history=None):
+        return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
+    
+    
 if __name__ == "__main__":
     pstate = PState("left-door")
     estate = EState("right-door")
     state = JointState(pstate, estate)
 
     paction = PAction("move")
-    eaction = EAction("stay")
+    eaction = EAction("move")
     action = JointAction(paction, eaction)
 
     Tp = TransitionModel("pursuer")
@@ -142,3 +171,15 @@ if __name__ == "__main__":
 
     print(Tp.sample(state, action))
     print(Te.sample(state, action))
+
+    Op = ObservationModel("pursuer")
+    observation = Op.sample(Tp.sample(state, action),
+                            action)
+    print(action)
+    print(observation)
+
+    Rp = RewardModel("pursuer")
+    print(Rp.sample(state, action, Tp.sample(state, action)))
+
+    Pp = PolicyModel("pursuer")
+    print(Pp.sample(state))

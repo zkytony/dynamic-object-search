@@ -154,12 +154,14 @@ class Observation(pomdp_py.Observation):
     def __repr__(self):
         return "Observation(%s)" % self.name
 
-SIDES = ["left-door", "right-door"]
-ACTIONS = ["move", "stay", "open-door"]
-OBSERVATIONS = ["noise", "silence"]
-
 def other_side(side):
     if side == "left-door":
         return "right-door"
     else:
         return "left-door"
+
+def other_role(side):
+    if side == "pursuer":
+        return "evader"
+    else:
+        return "pursuer" 

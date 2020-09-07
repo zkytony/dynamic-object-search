@@ -82,7 +82,7 @@ def run_trial(pstate, estate, opponent_rational=False):
     cum_reward = {"pursuer": 0.0,
                   "evader": 0.0}
     discount = 1.0
-    for step in range(20):
+    for step in range(15):
         print("\n---Step %d---" % step)
         ap = pouct_pursuer.plan(pursuer)
         paction = ap.paction
@@ -148,6 +148,7 @@ if __name__ == "__main__":
         rewards = {"pursuer":[],
                    "evader":[]}
         for trial in range(30):
+            print("########## trial %d ##########" % trial)
             pstate, estate = random.choice(all_combos)
             cum_reward = run_trial(pstate, estate, opponent_rational=opponent_rational)
             rewards["pursuer"].append(cum_reward["pursuer"])

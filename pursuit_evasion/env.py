@@ -14,7 +14,6 @@ class MultiAgentRewardModel(pomdp_py.RewardModel):
     def sample(self, state, action, next_state, role=None):
         return self._reward_models[role].sample(state, action, next_state)
 
-
     
 class PursuitEvasionEnvironment(pomdp_py.Environment):
 
@@ -32,13 +31,29 @@ class PursuitEvasionEnvironment(pomdp_py.Environment):
     def reset(self):
         self._last_real_action = None
 
+    def state_transition(self, action, execute=True):
+        next_state = self.transition_model.sample(self.state, action)
+        rewards = {}
+
+        for role in {"pursuer", "evader"}:
+            rewards[role] = self.reward_model.sample(
+                self.state, action, next_state, role=role)
+        if execute:
+            self.apply_transition(next_state)
+            self._last_real_action = action
+            return rewards
+
+        else:
+            return next_state, rewards
+        
+
     def __str__(self):
-        string = ""
+        string = "\n"
         
         sp = self.state.pstate
         se = self.state.estate
         sp_at_left_door = False
-        if se.side == "left-door":
+        if sp.side == "left-door":
             sp_at_left_door = True
         else:
             sp_at_right_door = False
@@ -54,14 +69,14 @@ class PursuitEvasionEnvironment(pomdp_py.Environment):
         if self._last_real_action is not None:
             if self._last_real_action.paction.name == "open-door":
                 if sp_at_left_door:
-                    left_door_string = "|"
+                    left_door_string = " "
                 else:
-                    right_string = "|"
+                    right_door_string = " "
             if self._last_real_action.eaction.name == "open-door":
                 if se_at_left_door:
-                    left_door_string = "|"
+                    left_door_string = " "
                 else:
-                    right_string = "|"
+                    right_door_string = " "
 
         if se_at_left_door:
             string += "E .\n"
@@ -72,7 +87,7 @@ class PursuitEvasionEnvironment(pomdp_py.Environment):
         if sp_at_left_door:
             string += "P ."
         else:
-            string += ". P"
+            string += ". P\n"
         return string
 
 
@@ -81,4 +96,6 @@ if __name__ == "__main__":
     estate = EState("right-door")
     state = JointState(pstate, estate)
     env = PursuitEvasionEnvironment(state)
+    env.state_transition(JointAction(PAction("move"), EAction("move")),
+                         execute=True)
     print(env)

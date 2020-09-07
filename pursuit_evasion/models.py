@@ -37,11 +37,11 @@ class TransitionModel(pomdp_py.TransitionModel):
             spi = next_state.for_role(ai.role)
             if ai.name == "move":
                 if si.side == spi.side:
-                    return 0.0
+                    return 1e-9
             else:
                 if si.side != spi.side:
-                    return 0.0
-        return 1.0
+                    return 1e-9
+        return 1.0 - 1e-9
             
     def sample(self, state, action, normalized=False, **kwargs):
         next_state = state.copy()
@@ -74,8 +74,8 @@ class ObservationModel(pomdp_py.ObservationModel):
         action (JointAction)
         """
         ai = action.for_role(self.role)
-        si = state.for_role(self.role)
-        sj = state.for_role(other_role(self.role))        
+        si = next_state.for_role(self.role)
+        sj = next_state.for_role(other_role(self.role))        
         if ai.name == "stay":
             # Can hear noise
             if si.side == sj.side:
@@ -94,17 +94,17 @@ class ObservationModel(pomdp_py.ObservationModel):
 
     def sample(self, next_state, action, normalized=False, **kwargs):
         ai = action.for_role(self.role)
-        si = state.for_role(self.role)
-        sj = state.for_role(other_role(self.role))                
+        si = next_state.for_role(self.role)
+        sj = next_state.for_role(other_role(self.role))                
         if ai.name == "stay":
             # Can hear noise
             if si.side == sj.side:
-                if random.uniform(0,1) > self.certainty:
+                if random.uniform(0,1) < self.certainty:
                     return Observation("noise-near")
                 else:
                     return Observation("noise-far")
             else:
-                if random.uniform(0,1) > self.certainty:
+                if random.uniform(0,1) < self.certainty:
                     return Observation("noise-far")
                 else:
                     return Observation("noise-near")                
@@ -140,7 +140,10 @@ class RewardModel(pomdp_py.RewardModel):
                     return -100
                 else:
                     return 100
-        return -1
+        if self.role == "evader":
+            return 1
+        else:
+            return -1
     
     def sample(self, state, action, next_state, normalized=False, **kwargs):
         # deterministic
@@ -155,19 +158,22 @@ class PolicyModel(pomdp_py.RandomRollout):
     """A random model"""
     def __init__(self, role):
         self.role = role
-        if self.role == "pursuer":
-            self.actions = [PAction("move"), PAction("stay"), PAction("open-door")]
-        else:
-            self.actions = [EAction("move"), EAction("stay"), EAction("open-door")]            
+        pactions = [PAction("move"), PAction("stay"), PAction("open-door")]
+        eactions = [EAction("move"), EAction("stay"), EAction("open-door")]
+        combos = []
+        for ap in pactions:
+            for ae in eactions:
+                combos.append(JointAction(ap,ae))
+        self.combos = combos
     
     def sample(self, state, **kwargs):
         return random.sample(self.get_all_actions(**kwargs), 1)[0]    
     
     def get_all_actions(self, **kwargs):
-        return self.actions
+        return self.combos
     
     def rollout(self, state, history=None):
-        return random.sample(self.get_all_actions(state=state, history=history), 1)[0]
+        return random.sample(self.get_all_actions(state=state, history=history), 1)[0]    
     
     
 if __name__ == "__main__":
@@ -176,7 +182,7 @@ if __name__ == "__main__":
     state = JointState(pstate, estate)
 
     paction = PAction("move")
-    eaction = EAction("move")
+    eaction = EAction("open-door")
     action = JointAction(paction, eaction)
 
     Tp = TransitionModel("pursuer")
@@ -191,7 +197,7 @@ if __name__ == "__main__":
     print(action)
     print(observation)
 
-    Rp = RewardModel("pursuer")
+    Rp = RewardModel("evader")
     print(Rp.sample(state, action, Tp.sample(state, action)))
 
     Pp = PolicyModel("pursuer")

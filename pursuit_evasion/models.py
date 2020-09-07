@@ -17,7 +17,7 @@
 # (reward) There is a pursuer and an evader. If when the door is open, and
 # both agents are met face to face, then the pursuer wins. Otherwise, the
 # evader wins. Whenever a door is open, the game ends.
-from ipomdp.examples.domain import *
+from pursuit_evasion.domain import *
 import random
     
 #------Transition, Observation, Reward, Policy models------#
@@ -25,9 +25,6 @@ import random
 class TransitionModel(pomdp_py.TransitionModel):
     """This problem is small enough for the probabilities to be directly given
             externally"""
-    def __init__(self, role):
-        self.role = role
-
     def probability(self, next_state, state, action, normalized=False, **kwargs):
         """
         next_state (JointState)
@@ -62,7 +59,8 @@ class ObservationModel(pomdp_py.ObservationModel):
     """
     Let i be the "self" agent and j be the "other" agent.
     If i moves or opens door, there is no observation.
-    If i stays, and j moves or opens door, then i hears noise (vice versa)
+    If i stays, and j is at the same door, there is "noise-near"
+    If i stays, and j is at the different same door, there is "noise-far"
     The observation model is only for a single agent.
     """
     def __init__(self, role, certainty=0.85):
@@ -76,11 +74,19 @@ class ObservationModel(pomdp_py.ObservationModel):
         action (JointAction)
         """
         ai = action.for_role(self.role)
-        aj = action.for_role(other_role(self.role))
+        si = state.for_role(self.role)
+        sj = state.for_role(other_role(self.role))        
         if ai.name == "stay":
-            if aj.name != "stay":
-                # There is noise
-                if observation.name == "noise":
+            # Can hear noise
+            if si.side == sj.side:
+                # both agents on the same side
+                if observation.name == "noise-near":
+                    return self.certainty
+                else:
+                    return 1.0 - self.certainty
+            else:
+                # both agents on different side                
+                if observation.name == "noise-far":
                     return self.certainty
                 else:
                     return 1.0 - self.certainty
@@ -88,18 +94,25 @@ class ObservationModel(pomdp_py.ObservationModel):
 
     def sample(self, next_state, action, normalized=False, **kwargs):
         ai = action.for_role(self.role)
-        aj = action.for_role(other_role(self.role))
+        si = state.for_role(self.role)
+        sj = state.for_role(other_role(self.role))                
         if ai.name == "stay":
-            if aj.name != "stay":
+            # Can hear noise
+            if si.side == sj.side:
                 if random.uniform(0,1) > self.certainty:
-                    return Observation("noise")
+                    return Observation("noise-near")
                 else:
-                    return Observation("silence")
+                    return Observation("noise-far")
+            else:
+                if random.uniform(0,1) > self.certainty:
+                    return Observation("noise-far")
+                else:
+                    return Observation("noise-near")                
 
         if random.uniform(0,1) > 0.5:
-            return Observation("noise")
+            return Observation("noise-near")
         else:
-            return Observation("silence")
+            return Observation("noise-far")
 
 # Reward Model
 class RewardModel(pomdp_py.RewardModel):

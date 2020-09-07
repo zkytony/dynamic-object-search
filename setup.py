@@ -4,7 +4,7 @@ from setuptools import setup
 from distutils.extension import Extension
 
 setup(name='dynamic_mos',
-      packages=['dynamic_mos', 'adversarial_mos', 'search_and_rescue', 'ipomdp'],
+      packages=['dynamic_mos', 'adversarial_mos', 'search_and_rescue', 'pursuit_evasion'],
       version='0.0',
       description='Dynamic multi-object search',
       python_requires='>3.6',

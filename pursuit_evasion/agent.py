@@ -19,6 +19,13 @@ class Agent(pomdp_py.Agent):
                          observation_model=observation_model,
                          reward_model=reward_model)
 
+def print_belief(role, belief):
+    for state in belief:
+        if role == "pursuer":
+            print("    evader at ", state.estate, belief[state])
+        else:
+            print("    pursuer at ", state.pstate, belief[state])
+
 if __name__ == "__main__":
     pLstate = PState("left-door")
     pRstate = PState("right-door")    
@@ -43,27 +50,23 @@ if __name__ == "__main__":
                                    planning_time=0.4,
                                    exploration_const=100)
     print(env)
+    print_belief("pursuer", pursuer.belief)
+    print_belief("evader", evader.belief)
+    print()
     for step in range(100):
         print("---Step %d---" % step)
         ap = pouct_pursuer.plan(pursuer)
         paction = ap.paction
         paction_value = pursuer.tree[ap].value
-        op = pursuer.observation_model.sample(env.state, ap)        
-        print("Pursuer:", paction, op)
-        print("        ", paction_value, pouct_pursuer.last_num_sims, pursuer.belief)
         
         ae = pouct_evader.plan(evader)
         eaction = ae.eaction
         eaction_value = evader.tree[ae].value
-        oe = evader.observation_model.sample(env.state, ae)
-        print("Evader:", eaction, oe)
-        print("       ", eaction_value, pouct_evader.last_num_sims, evader.belief)
-        
+
         action = JointAction(paction, eaction)
         reward = env.state_transition(action, execute=True)
-        print(reward)
-        print(env)
-
+        op = pursuer.observation_model.sample(env.state, ap)
+        oe = evader.observation_model.sample(env.state, ae)        
 
         bnew_p = pomdp_py.update_histogram_belief(pursuer.belief,
                                                   ap, op,
@@ -77,6 +80,23 @@ if __name__ == "__main__":
         evader.set_belief(bnew_e)
         pouct_pursuer.update(pursuer, ap, op)
         pouct_evader.update(evader, ae, oe)
+        
+        print("Pursuer:", paction_value, pouct_pursuer.last_num_sims)
+        print("|       action taken: %s" % paction)
+        print("| thinks evader took: %s" % ap.eaction)
+        print("|        observation: %s" % op)
+        print("***belief***")
+        print_belief("pursuer", pursuer.belief)        
+        print("\_______________________")
+        print("Evader:", eaction_value, pouct_evader.last_num_sims)
+        print("|       action taken: %s" % eaction)
+        print("| thinks pursuer took: %s" % ae.paction)
+        print("|        observation: %s" % oe)
+        print("***belief***")        
+        print_belief("evader", evader.belief)                
+        print("\_______________________")        
+        print(reward)
+        print(env)
 
         if paction.name == "open-door"\
             or eaction.name == "open-door":

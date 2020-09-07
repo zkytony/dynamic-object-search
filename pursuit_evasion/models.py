@@ -63,7 +63,7 @@ class ObservationModel(pomdp_py.ObservationModel):
     If i stays, and j is at the different same door, there is "noise-far"
     The observation model is only for a single agent.
     """
-    def __init__(self, role, certainty=0.85):
+    def __init__(self, role, certainty=0.99):
         self.role = role
         self.certainty = certainty
 
@@ -141,9 +141,9 @@ class RewardModel(pomdp_py.RewardModel):
                 else:
                     return 100
         if self.role == "evader":
-            return 1
+            return 1e-9
         else:
-            return -1
+            return 1e-9
     
     def sample(self, state, action, next_state, normalized=False, **kwargs):
         # deterministic

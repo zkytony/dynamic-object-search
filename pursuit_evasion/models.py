@@ -120,8 +120,10 @@ class RewardModel(pomdp_py.RewardModel):
     If any one opens door and both agents appear
     on the same side, then there is a reward or penalty
     """
-    def __init__(self, role):
+    def __init__(self, role, opponent_rational=False, for_env=False):
         self.role = role
+        self.opponent_rational=opponent_rational
+        self.for_env = for_env
         
     def _reward_func(self, state, action, next_state):
         # Self is 'i', other agent is 'j'
@@ -147,12 +149,18 @@ class RewardModel(pomdp_py.RewardModel):
                 rj = 100 if other_role(self.role) == "evader" else -100        
         else:
             rj = -1 if other_role(self.role == "pursuer") else 1
-            
-        if ri - rj == 0:
-            return 0
+
+        if self.for_env:
+            return ri
         else:
-            return -abs(ri - rj)
-            
+            # For planning
+            if self.opponent_rational:
+                if ri - rj == 0:
+                    return 0  # prefers equilibrium
+                else:
+                    return -abs(ri - rj)
+            else:
+                return ri - rj
     
     def sample(self, state, action, next_state, normalized=False, **kwargs):
         # deterministic

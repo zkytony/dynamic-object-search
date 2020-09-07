@@ -19,8 +19,8 @@ class PursuitEvasionEnvironment(pomdp_py.Environment):
 
     def __init__(self, init_state):
         transition_model = TransitionModel()
-        pursuer_reward = RewardModel("pursuer")
-        evader_reward = RewardModel("evader")        
+        pursuer_reward = RewardModel("pursuer", for_env=True)
+        evader_reward = RewardModel("evader", for_env=True)        
         reward_model = MultiAgentRewardModel({"pursuer":pursuer_reward,
                                               "evader":evader_reward})
         self._last_real_action = None

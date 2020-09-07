@@ -63,7 +63,7 @@ class ObservationModel(pomdp_py.ObservationModel):
     If i stays, and j is at the different same door, there is "noise-far"
     The observation model is only for a single agent.
     """
-    def __init__(self, role, certainty=0.99):
+    def __init__(self, role, certainty=0.85):
         self.role = role
         self.certainty = certainty
 
@@ -123,27 +123,36 @@ class RewardModel(pomdp_py.RewardModel):
     def __init__(self, role):
         self.role = role
         
-    def _reward_func(self, state, action):
+    def _reward_func(self, state, action, next_state):
+        # Self is 'i', other agent is 'j'
         ai = action.for_role(self.role)
         aj = action.for_role(other_role(self.role))
-        if ai.name == "open-door"\
-           or aj.name == "open-door":
-            si = state.for_role(self.role)
-            sj = state.for_role(other_role(self.role))
-            if si.side == sj.side:
-                if self.role == "pursuer":
-                    return 100
-                else:
-                    return -100
+        spi = next_state.for_role(self.role)
+        spj = next_state.for_role(other_role(self.role))
+        
+        ri = 0
+        if ai.name == "open-door":
+            if spi.side == spj.side:
+                ri = 100 if self.role == "pursuer" else -100
             else:
-                if self.role == "pursuer":
-                    return -100
-                else:
-                    return 100
-        if self.role == "evader":
-            return 1e-9
+                ri = 100 if self.role == "evader" else -100
         else:
-            return 1e-9
+            ri = -1 if self.role == "pursuer" else 1
+            
+        rj = 0
+        if aj.name == "open-door":
+            if spi.side == spj.side:
+                rj = 100 if other_role(self.role) == "pursuer" else -100
+            else:
+                rj = 100 if other_role(self.role) == "evader" else -100        
+        else:
+            rj = -1 if other_role(self.role == "pursuer") else 1
+            
+        if ri - rj == 0:
+            return 0
+        else:
+            return -abs(ri - rj)
+            
     
     def sample(self, state, action, next_state, normalized=False, **kwargs):
         # deterministic
@@ -151,7 +160,7 @@ class RewardModel(pomdp_py.RewardModel):
 
     def argmax(self, state, action, next_state, normalized=False, **kwargs):
         """Returns the most likely reward"""
-        return self._reward_func(state, action)
+        return self._reward_func(state, action, next_state)
 
 # Policy Model
 class PolicyModel(pomdp_py.RandomRollout):
@@ -177,9 +186,11 @@ class PolicyModel(pomdp_py.RandomRollout):
     
     
 if __name__ == "__main__":
-    pstate = PState("left-door")
-    estate = EState("right-door")
-    state = JointState(pstate, estate)
+    pLstate = PState("left-door")
+    pRstate = PState("right-door")    
+    eLstate = EState("left-door")
+    eRstate = EState("right-door")    
+    state = JointState(pLstate, eRstate)
 
     paction = PAction("move")
     eaction = EAction("open-door")
@@ -202,3 +213,14 @@ if __name__ == "__main__":
 
     Pp = PolicyModel("pursuer")
     print(Pp.sample(state))
+
+    be0 = pomdp_py.Histogram({JointState(pLstate, eRstate):0.5,
+                              JointState(pRstate, eRstate):0.5})
+    oe = Observation("noise-near")
+    ae = JointAction(PAction("stay"), EAction("stay"))
+    bnew_e = pomdp_py.update_histogram_belief(be0,
+                                              ae, oe,
+                                              ObservationModel("evader"),
+                                              TransitionModel())
+    print(bnew_e)
+
